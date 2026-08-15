@@ -35,14 +35,14 @@ jobs:
           cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/settings.gradle work/settings.gradle
           cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/gradle.properties work/gradle.properties
 
-          # Forge 1.20.1 runtime connection mapping fix.
           sed -i 's/player\.connection\.getConnection()/player.connection.connection/g' work/src/main/java/dev/klearcombat/network/CombatNetwork.java
           sed -i -E 's/^mod_version=.*/mod_version=2.0.2/' work/gradle.properties
 
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          # Keep the v2.0.1 head-rotation fix.
+          # Keep v2.0.1 head rotation fix.
           p = Path('work/src/main/java/dev/klearcombat/client/CombatAnimator.java')
           s = p.read_text()
           start = s.index('    public static void applyModelPose(HumanoidModel<?> model, Pose p, float weight) {')
@@ -88,58 +88,79 @@ jobs:
           '''
           p.write_text(s[:start] + new + s[end:])
 
-          # v2.0.2: massive bare-hand damage + no finisher-health requirement.
+          # v2.0.2 server combat patch.
           p = Path('work/src/main/java/dev/klearcombat/server/FinisherServerManager.java')
           s = p.read_text()
-          s = s.replace(
-              'import net.minecraftforge.event.entity.player.AttackEntityEvent;\n',
-              'import net.minecraftforge.event.entity.player.AttackEntityEvent;\n'
-              'import net.minecraftforge.event.entity.living.LivingHurtEvent;\n'
-              'import net.minecraftforge.event.entity.living.LivingKnockBackEvent;\n'
+
+          # Add Forge damage/knockback events.
+          if 'LivingHurtEvent' not in s:
+              anchor = 'import net.minecraftforge.event.entity.player.AttackEntityEvent;\n'
+              if anchor not in s:
+                  raise SystemExit('AttackEntityEvent import missing')
+              s = s.replace(anchor, anchor +
+                  'import net.minecraftforge.event.entity.living.LivingHurtEvent;\n' +
+                  'import net.minecraftforge.event.entity.living.LivingKnockBackEvent;\n', 1)
+
+          # Add punch constants.
+          if 'POWER_PUNCH_DAMAGE' not in s:
+              anchor = '    private static final int REQUEST_COOLDOWN_TICKS = 8;\n'
+              if anchor not in s:
+                  raise SystemExit('REQUEST_COOLDOWN_TICKS anchor missing')
+              s = s.replace(anchor, anchor +
+                  '    private static final float POWER_PUNCH_DAMAGE = 40.0f;\n' +
+                  '    private static final float POWER_PUNCH_KNOCKBACK_MULTIPLIER = 2.75f;\n', 1)
+
+          # Remove finisher health gate regardless of whitespace.
+          s, removed = re.subn(
+              r'\n\s*if\s*\(!isLowEnough\(target\)\)\s*\{\s*deny\(attacker,\s*"message\.klearcombat\.health_too_high"\);\s*return;\s*\}\s*',
+              '\n', s, count=1
           )
-          s = s.replace(
-              '    private static final int REQUEST_COOLDOWN_TICKS = 8;\n',
-              '    private static final int REQUEST_COOLDOWN_TICKS = 8;\n'
-              '    private static final float POWER_PUNCH_DAMAGE = 40.0f;\n'
-              '    private static final float POWER_PUNCH_KNOCKBACK_MULTIPLIER = 2.75f;\n'
-          )
-          s = s.replace('''        if (!isLowEnough(target)) {
-              deny(attacker, "message.klearcombat.health_too_high");
-              return;
-          }
-          ''', '')
+          if removed == 0 and 'isLowEnough(target)' in s:
+              raise SystemExit('Could not remove finisher health gate')
+
           low_start = s.find('    private static boolean isLowEnough(LivingEntity target) {')
           if low_start != -1:
               low_end = s.index('    private static void deny', low_start)
               s = s[:low_start] + s[low_end:]
 
-          marker = '''    @SubscribeEvent
-          public static void onAttack(AttackEntityEvent event) {
-          '''
-          handlers = '''    @SubscribeEvent
-          public static void onLivingHurt(LivingHurtEvent event) {
-              if (event.getEntity().level().isClientSide) return;
-              Entity source = event.getSource().getEntity();
-              if (!(source instanceof Player attacker)) return;
-              if (!attacker.getMainHandItem().isEmpty()) return;
-              if (BY_ATTACKER.containsKey(attacker.getUUID()) || VICTIM_TO_ATTACKER.containsKey(attacker.getUUID())) return;
-              event.setAmount(Math.max(event.getAmount(), POWER_PUNCH_DAMAGE));
-          }
+          # Insert server-side bare-fist damage + knockback before onAttack.
+          if 'public static void onLivingHurt(LivingHurtEvent event)' not in s:
+              attack_method = 'public static void onAttack(AttackEntityEvent event) {'
+              attack_idx = s.index(attack_method)
+              anno_idx = s.rfind('@SubscribeEvent', 0, attack_idx)
+              if anno_idx == -1:
+                  raise SystemExit('SubscribeEvent before onAttack missing')
+              line_start = s.rfind('\n', 0, anno_idx) + 1
+              handlers = '''    @SubscribeEvent
+              public static void onLivingHurt(LivingHurtEvent event) {
+                  if (event.getEntity().level().isClientSide) return;
+                  Entity source = event.getSource().getEntity();
+                  if (!(source instanceof Player attacker)) return;
+                  if (!attacker.getMainHandItem().isEmpty()) return;
+                  if (BY_ATTACKER.containsKey(attacker.getUUID()) || VICTIM_TO_ATTACKER.containsKey(attacker.getUUID())) return;
+                  event.setAmount(Math.max(event.getAmount(), POWER_PUNCH_DAMAGE));
+              }
 
-          @SubscribeEvent
-          public static void onLivingKnockBack(LivingKnockBackEvent event) {
-              LivingEntity target = event.getEntity();
-              LivingEntity last = target.getLastHurtByMob();
-              if (!(last instanceof Player attacker)) return;
-              if (!attacker.getMainHandItem().isEmpty()) return;
-              if (BY_ATTACKER.containsKey(attacker.getUUID()) || VICTIM_TO_ATTACKER.containsKey(attacker.getUUID())) return;
-              event.setStrength(event.getStrength() * POWER_PUNCH_KNOCKBACK_MULTIPLIER);
-          }
+              @SubscribeEvent
+              public static void onLivingKnockBack(LivingKnockBackEvent event) {
+                  LivingEntity target = event.getEntity();
+                  LivingEntity last = target.getLastHurtByMob();
+                  if (!(last instanceof Player attacker)) return;
+                  if (!attacker.getMainHandItem().isEmpty()) return;
+                  if (BY_ATTACKER.containsKey(attacker.getUUID()) || VICTIM_TO_ATTACKER.containsKey(attacker.getUUID())) return;
+                  event.setStrength(event.getStrength() * POWER_PUNCH_KNOCKBACK_MULTIPLIER);
+              }
 
           '''
-          if marker not in s:
-              raise SystemExit('AttackEntityEvent insertion point missing')
-          s = s.replace(marker, handlers + marker)
+              s = s[:line_start] + handlers + s[line_start:]
+
+          if 'isLowEnough(target)' in s:
+              raise SystemExit('Health gate still present after patch')
+          if 'POWER_PUNCH_DAMAGE = 40.0f' not in s:
+              raise SystemExit('Punch damage constant missing after patch')
+          if 'onLivingHurt(LivingHurtEvent event)' not in s:
+              raise SystemExit('Punch damage handler missing after patch')
+
           p.write_text(s)
           PY
 
@@ -159,12 +180,8 @@ jobs:
           jar tf "$JAR" | grep 'klearcombat.mixins.json'
           jar tf "$JAR" | grep 'klearcombat.refmap.json'
           jar tf "$JAR" | grep 'dev/klearcombat/server/FinisherServerManager.class'
-          if jar tf "$JAR" | grep -q 'com/example/examplemod'; then
-            echo 'ERROR: ExampleMod contamination'; exit 1
-          fi
-          if jar tf "$JAR" | grep -qi 'examplemod'; then
-            echo 'ERROR: examplemod contamination'; exit 1
-          fi
+          if jar tf "$JAR" | grep -q 'com/example/examplemod'; then echo 'ERROR: ExampleMod contamination'; exit 1; fi
+          if jar tf "$JAR" | grep -qi 'examplemod'; then echo 'ERROR: examplemod contamination'; exit 1; fi
           mkdir -p out
           cp "$JAR" out/KlearCombatAnimations-Forge-1.20.1-v2.0.2.jar
 
