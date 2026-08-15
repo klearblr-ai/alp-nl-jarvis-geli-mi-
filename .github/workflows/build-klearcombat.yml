@@ -34,6 +34,8 @@ jobs:
           cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/build.gradle work/build.gradle
           cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/settings.gradle work/settings.gradle
           cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/gradle.properties work/gradle.properties
+          # Forge 1.20.1 ServerGamePacketListenerImpl exposes the underlying Connection as a field.
+          sed -i 's/player\.connection\.getConnection()/player.connection.connection/g' work/src/main/java/dev/klearcombat/network/CombatNetwork.java
           chmod +x work/gradlew
 
       - name: Build and reobfuscate
