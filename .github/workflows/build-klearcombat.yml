@@ -40,16 +40,8 @@ jobs:
           from pathlib import Path
           p = Path('work/src/main/java/dev/klearcombat/client/CombatAnimator.java')
           s = p.read_text()
-          old = '''    public static void applyModelPose(HumanoidModel<?> model, Pose p, float weight) {
-              float w = Math.max(0, Math.min(1, weight));
-              addWeighted(model.head, p.headX, p.headY, p.headZ, w * 0.45f);
-              setWeighted(model.body, p.bodyX, p.bodyY, p.bodyZ, w * 0.92f);
-              setWeighted(model.rightArm, p.rightArmX, p.rightArmY, p.rightArmZ, w);
-              setWeighted(model.leftArm, p.leftArmX, p.leftArmY, p.leftArmZ, w);
-              setWeighted(model.rightLeg, p.rightLegX, p.rightLegY, p.rightLegZ, w * 0.82f);
-              setWeighted(model.leftLeg, p.leftLegX, p.leftLegY, p.leftLegZ, w * 0.82f);
-          }
-          '''
+          start = s.index('    public static void applyModelPose(HumanoidModel<?> model, Pose p, float weight) {')
+          end = s.index('    public static float normalPoseWeight()', start)
           new = '''    public static void applyModelPose(HumanoidModel<?> model, Pose p, float weight) {
               float w = Math.max(0, Math.min(1, weight));
 
@@ -88,10 +80,9 @@ jobs:
           private static float clamp(float value, float min, float max) {
               return Math.max(min, Math.min(max, value));
           }
+
           '''
-          if old not in s:
-              raise SystemExit('CombatAnimator applyModelPose block not found')
-          p.write_text(s.replace(old, new))
+          p.write_text(s[:start] + new + s[end:])
           PY
           chmod +x work/gradlew
 
@@ -109,14 +100,8 @@ jobs:
           jar tf "$JAR" | grep 'klearcombat.mixins.json'
           jar tf "$JAR" | grep 'klearcombat.refmap.json'
           jar tf "$JAR" | grep 'dev/klearcombat/'
-          if jar tf "$JAR" | grep -q 'com/example/examplemod'; then
-            echo 'ERROR: Forge ExampleMod classes contaminated the output JAR'
-            exit 1
-          fi
-          if jar tf "$JAR" | grep -qi 'examplemod'; then
-            echo 'ERROR: examplemod metadata/resource contamination detected'
-            exit 1
-          fi
+          if jar tf "$JAR" | grep -q 'com/example/examplemod'; then exit 1; fi
+          if jar tf "$JAR" | grep -qi 'examplemod'; then exit 1; fi
           mkdir -p out
           cp "$JAR" out/KlearCombatAnimations-Forge-1.20.1-v2.0.1.jar
 
