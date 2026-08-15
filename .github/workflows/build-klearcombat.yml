@@ -1,6 +1,8 @@
 name: Build KlearCombat Forge 1.20.1
 
 on:
+  push:
+    branches: ["chatgpt/klearcombat-build"]
   workflow_dispatch:
 
 permissions:
@@ -11,4 +13,162 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "CI temporarily paused while v2.0.2 source chunks are uploaded"
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Prepare Forge MDK and v2.0.2 patches
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p /tmp/klear-src work
+          cat klearcombat/source.part* > /tmp/klear-src/source.tar.gz.b64
+          base64 -d /tmp/klear-src/source.tar.gz.b64 > /tmp/klear-src/source.tar.gz
+          tar -xzf /tmp/klear-src/source.tar.gz -C /tmp/klear-src
+          curl -fL -o /tmp/mdk.zip https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.22/forge-1.20.1-47.4.22-mdk.zip
+          unzip -q /tmp/mdk.zip -d work
+          rm -rf work/src
+          cp -R /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/src work/
+          cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/build.gradle work/build.gradle
+          cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/settings.gradle work/settings.gradle
+          cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/gradle.properties work/gradle.properties
+
+          # Forge 1.20.1 runtime connection mapping fix.
+          sed -i 's/player\.connection\.getConnection()/player.connection.connection/g' work/src/main/java/dev/klearcombat/network/CombatNetwork.java
+          sed -i -E 's/^mod_version=.*/mod_version=2.0.2/' work/gradle.properties
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Keep the v2.0.1 head-rotation fix.
+          p = Path('work/src/main/java/dev/klearcombat/client/CombatAnimator.java')
+          s = p.read_text()
+          start = s.index('    public static void applyModelPose(HumanoidModel<?> model, Pose p, float weight) {')
+          end = s.index('    public static float normalPoseWeight()', start)
+          new = '''    public static void applyModelPose(HumanoidModel<?> model, Pose p, float weight) {
+              float w = Math.max(0, Math.min(1, weight));
+              float vanillaHeadX = model.head.xRot;
+              float vanillaHeadY = model.head.yRot;
+              float vanillaHeadZ = model.head.zRot;
+
+              setWeighted(model.body, p.bodyX, p.bodyY, p.bodyZ, w * 0.92f);
+              setWeighted(model.rightArm, p.rightArmX, p.rightArmY, p.rightArmZ, w);
+              setWeighted(model.leftArm, p.leftArmX, p.leftArmY, p.leftArmZ, w);
+              setWeighted(model.rightLeg, p.rightLegX, p.rightLegY, p.rightLegZ, w * 0.82f);
+              setWeighted(model.leftLeg, p.leftLegX, p.leftLegY, p.leftLegZ, w * 0.82f);
+
+              float yawTracking = trackingForRoot(Math.abs(p.rootYaw));
+              float pitchTracking = trackingForRoot(Math.abs(p.rootPitch));
+              float animX = (float) Math.toRadians(clamp(p.headX, -9.0f, 9.0f)) * w * 0.30f;
+              float animY = (float) Math.toRadians(clamp(p.headY, -7.0f, 7.0f)) * w * 0.22f;
+              float animZ = (float) Math.toRadians(clamp(p.headZ, -4.0f, 4.0f)) * w * 0.18f;
+
+              model.head.xRot = clamp(vanillaHeadX * pitchTracking + animX,
+                      (float) Math.toRadians(-50), (float) Math.toRadians(50));
+              model.head.yRot = clamp(vanillaHeadY * yawTracking + animY,
+                      (float) Math.toRadians(-55), (float) Math.toRadians(55));
+              model.head.zRot = clamp(vanillaHeadZ + animZ,
+                      (float) Math.toRadians(-8), (float) Math.toRadians(8));
+          }
+
+          private static float trackingForRoot(float degrees) {
+              if (degrees >= 120.0f) return 0.08f;
+              if (degrees >= 70.0f) return 0.18f;
+              if (degrees >= 35.0f) return 0.45f;
+              if (degrees >= 18.0f) return 0.72f;
+              return 1.0f;
+          }
+
+          private static float clamp(float value, float min, float max) {
+              return Math.max(min, Math.min(max, value));
+          }
+
+          '''
+          p.write_text(s[:start] + new + s[end:])
+
+          # v2.0.2: massive bare-hand damage + no finisher-health requirement.
+          p = Path('work/src/main/java/dev/klearcombat/server/FinisherServerManager.java')
+          s = p.read_text()
+          s = s.replace(
+              'import net.minecraftforge.event.entity.player.AttackEntityEvent;\n',
+              'import net.minecraftforge.event.entity.player.AttackEntityEvent;\n'
+              'import net.minecraftforge.event.entity.living.LivingHurtEvent;\n'
+              'import net.minecraftforge.event.entity.living.LivingKnockBackEvent;\n'
+          )
+          s = s.replace(
+              '    private static final int REQUEST_COOLDOWN_TICKS = 8;\n',
+              '    private static final int REQUEST_COOLDOWN_TICKS = 8;\n'
+              '    private static final float POWER_PUNCH_DAMAGE = 40.0f;\n'
+              '    private static final float POWER_PUNCH_KNOCKBACK_MULTIPLIER = 2.75f;\n'
+          )
+          s = s.replace('''        if (!isLowEnough(target)) {
+              deny(attacker, "message.klearcombat.health_too_high");
+              return;
+          }
+          ''', '')
+          low_start = s.find('    private static boolean isLowEnough(LivingEntity target) {')
+          if low_start != -1:
+              low_end = s.index('    private static void deny', low_start)
+              s = s[:low_start] + s[low_end:]
+
+          marker = '''    @SubscribeEvent
+          public static void onAttack(AttackEntityEvent event) {
+          '''
+          handlers = '''    @SubscribeEvent
+          public static void onLivingHurt(LivingHurtEvent event) {
+              if (event.getEntity().level().isClientSide) return;
+              Entity source = event.getSource().getEntity();
+              if (!(source instanceof Player attacker)) return;
+              if (!attacker.getMainHandItem().isEmpty()) return;
+              if (BY_ATTACKER.containsKey(attacker.getUUID()) || VICTIM_TO_ATTACKER.containsKey(attacker.getUUID())) return;
+              event.setAmount(Math.max(event.getAmount(), POWER_PUNCH_DAMAGE));
+          }
+
+          @SubscribeEvent
+          public static void onLivingKnockBack(LivingKnockBackEvent event) {
+              LivingEntity target = event.getEntity();
+              LivingEntity last = target.getLastHurtByMob();
+              if (!(last instanceof Player attacker)) return;
+              if (!attacker.getMainHandItem().isEmpty()) return;
+              if (BY_ATTACKER.containsKey(attacker.getUUID()) || VICTIM_TO_ATTACKER.containsKey(attacker.getUUID())) return;
+              event.setStrength(event.getStrength() * POWER_PUNCH_KNOCKBACK_MULTIPLIER);
+          }
+
+          '''
+          if marker not in s:
+              raise SystemExit('AttackEntityEvent insertion point missing')
+          s = s.replace(marker, handlers + marker)
+          p.write_text(s)
+          PY
+
+          chmod +x work/gradlew
+
+      - name: Build and reobfuscate
+        working-directory: work
+        run: ./gradlew --no-daemon clean build reobfJar --stacktrace
+
+      - name: Inspect JAR
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ls -lah work/build/libs
+          JAR=$(find work/build/libs -maxdepth 1 -name '*.jar' ! -name '*sources*' | head -1)
+          jar tf "$JAR" | grep 'META-INF/mods.toml'
+          jar tf "$JAR" | grep 'klearcombat.mixins.json'
+          jar tf "$JAR" | grep 'klearcombat.refmap.json'
+          jar tf "$JAR" | grep 'dev/klearcombat/server/FinisherServerManager.class'
+          if jar tf "$JAR" | grep -q 'com/example/examplemod'; then
+            echo 'ERROR: ExampleMod contamination'; exit 1
+          fi
+          if jar tf "$JAR" | grep -qi 'examplemod'; then
+            echo 'ERROR: examplemod contamination'; exit 1
+          fi
+          mkdir -p out
+          cp "$JAR" out/KlearCombatAnimations-Forge-1.20.1-v2.0.2.jar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KlearCombatAnimations-Forge-1.20.1-v2.0.2
+          path: out/KlearCombatAnimations-Forge-1.20.1-v2.0.2.jar
