@@ -1,8 +1,6 @@
 name: Build KlearCombat Forge 1.20.1
 
 on:
-  push:
-    branches: ["chatgpt/klearcombat-build"]
   workflow_dispatch:
 
 permissions:
@@ -24,11 +22,11 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p /tmp/klear-src work
-          base64 -d klearcombat/source.tar.gz.b64 > /tmp/klear-src/source.tar.gz
+          cat klearcombat/source.part* > /tmp/klear-src/source.tar.gz.b64
+          base64 -d /tmp/klear-src/source.tar.gz.b64 > /tmp/klear-src/source.tar.gz
           tar -xzf /tmp/klear-src/source.tar.gz -C /tmp/klear-src
           curl -fL -o /tmp/mdk.zip https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.22/forge-1.20.1-47.4.22-mdk.zip
           unzip -q /tmp/mdk.zip -d work
-          # Never merge our sources with Forge MDK's ExampleMod template.
           rm -rf work/src
           cp -R /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/src work/
           cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/build.gradle work/build.gradle
