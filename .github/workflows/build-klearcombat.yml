@@ -28,6 +28,8 @@ jobs:
           tar -xzf /tmp/klear-src/source.tar.gz -C /tmp/klear-src
           curl -fL -o /tmp/mdk.zip https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.22/forge-1.20.1-47.4.22-mdk.zip
           unzip -q /tmp/mdk.zip -d work
+          # Never merge our sources with Forge MDK's ExampleMod template.
+          rm -rf work/src
           cp -R /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/src work/
           cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/build.gradle work/build.gradle
           cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/settings.gradle work/settings.gradle
@@ -48,10 +50,18 @@ jobs:
           jar tf "$JAR" | grep 'klearcombat.mixins.json'
           jar tf "$JAR" | grep 'klearcombat.refmap.json'
           jar tf "$JAR" | grep 'dev/klearcombat/'
+          if jar tf "$JAR" | grep -q 'com/example/examplemod'; then
+            echo 'ERROR: Forge ExampleMod classes contaminated the output JAR'
+            exit 1
+          fi
+          if jar tf "$JAR" | grep -qi 'examplemod'; then
+            echo 'ERROR: examplemod metadata/resource contamination detected'
+            exit 1
+          fi
           mkdir -p out
-          cp "$JAR" out/KlearCombatAnimations-Forge-1.20.1-FIXED.jar
+          cp "$JAR" out/KlearCombatAnimations-Forge-1.20.1-v2.0.0.jar
 
       - uses: actions/upload-artifact@v4
         with:
-          name: KlearCombatAnimations-Forge-1.20.1-FIXED
-          path: out/KlearCombatAnimations-Forge-1.20.1-FIXED.jar
+          name: KlearCombatAnimations-Forge-1.20.1-v2.0.0
+          path: out/KlearCombatAnimations-Forge-1.20.1-v2.0.0.jar
