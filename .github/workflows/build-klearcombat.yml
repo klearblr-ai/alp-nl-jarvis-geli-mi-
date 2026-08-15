@@ -1,0 +1,58 @@
+name: Build KlearCombat Forge 1.20.1
+
+on:
+  push:
+    branches: ["chatgpt/klearcombat-build"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Prepare Forge MDK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p /tmp/klear-src work
+          base64 -d klearcombat/source.tar.gz.b64 > /tmp/klear-src/source.tar.gz
+          tar -xzf /tmp/klear-src/source.tar.gz -C /tmp/klear-src
+          curl -fL -o /tmp/mdk.zip https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.22/forge-1.20.1-47.4.22-mdk.zip
+          unzip -q /tmp/mdk.zip -d work
+          cp -R /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/src work/
+          cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/build.gradle work/build.gradle
+          cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/settings.gradle work/settings.gradle
+          cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/gradle.properties work/gradle.properties
+          chmod +x work/gradlew
+
+      - name: Build and reobfuscate
+        working-directory: work
+        run: ./gradlew --no-daemon clean build reobfJar --stacktrace
+
+      - name: Inspect JAR
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ls -lah work/build/libs
+          JAR=$(find work/build/libs -maxdepth 1 -name '*.jar' ! -name '*sources*' | head -1)
+          jar tf "$JAR" | grep 'META-INF/mods.toml'
+          jar tf "$JAR" | grep 'klearcombat.mixins.json'
+          jar tf "$JAR" | grep 'klearcombat.refmap.json'
+          jar tf "$JAR" | grep 'dev/klearcombat/'
+          mkdir -p out
+          cp "$JAR" out/KlearCombatAnimations-Forge-1.20.1-FIXED.jar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KlearCombatAnimations-Forge-1.20.1-FIXED
+          path: out/KlearCombatAnimations-Forge-1.20.1-FIXED.jar
