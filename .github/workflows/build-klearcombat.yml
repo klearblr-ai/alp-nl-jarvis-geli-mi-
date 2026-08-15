@@ -1,8 +1,6 @@
 name: Build KlearCombat Forge 1.20.1
 
 on:
-  push:
-    branches: ["chatgpt/klearcombat-build"]
   workflow_dispatch:
 
 permissions:
@@ -13,99 +11,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Prepare Forge MDK
-        shell: bash
-        run: |
-          set -euxo pipefail
-          mkdir -p /tmp/klear-src work
-          cat klearcombat/source.part* > /tmp/klear-src/source.tar.gz.b64
-          base64 -d /tmp/klear-src/source.tar.gz.b64 > /tmp/klear-src/source.tar.gz
-          tar -xzf /tmp/klear-src/source.tar.gz -C /tmp/klear-src
-          curl -fL -o /tmp/mdk.zip https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.22/forge-1.20.1-47.4.22-mdk.zip
-          unzip -q /tmp/mdk.zip -d work
-          rm -rf work/src
-          cp -R /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/src work/
-          cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/build.gradle work/build.gradle
-          cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/settings.gradle work/settings.gradle
-          cp /tmp/klear-src/KlearCombatAnimations-Forge-1.20.1/gradle.properties work/gradle.properties
-          sed -i 's/player\.connection\.getConnection()/player.connection.connection/g' work/src/main/java/dev/klearcombat/network/CombatNetwork.java
-          sed -i 's/mod_version=2.0.0/mod_version=2.0.1/' work/gradle.properties
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('work/src/main/java/dev/klearcombat/client/CombatAnimator.java')
-          s = p.read_text()
-          start = s.index('    public static void applyModelPose(HumanoidModel<?> model, Pose p, float weight) {')
-          end = s.index('    public static float normalPoseWeight()', start)
-          new = '''    public static void applyModelPose(HumanoidModel<?> model, Pose p, float weight) {
-              float w = Math.max(0, Math.min(1, weight));
-
-              float vanillaHeadX = model.head.xRot;
-              float vanillaHeadY = model.head.yRot;
-              float vanillaHeadZ = model.head.zRot;
-
-              setWeighted(model.body, p.bodyX, p.bodyY, p.bodyZ, w * 0.92f);
-              setWeighted(model.rightArm, p.rightArmX, p.rightArmY, p.rightArmZ, w);
-              setWeighted(model.leftArm, p.leftArmX, p.leftArmY, p.leftArmZ, w);
-              setWeighted(model.rightLeg, p.rightLegX, p.rightLegY, p.rightLegZ, w * 0.82f);
-              setWeighted(model.leftLeg, p.leftLegX, p.leftLegY, p.leftLegZ, w * 0.82f);
-
-              float yawTracking = trackingForRoot(Math.abs(p.rootYaw));
-              float pitchTracking = trackingForRoot(Math.abs(p.rootPitch));
-              float animX = (float) Math.toRadians(clamp(p.headX, -9.0f, 9.0f)) * w * 0.30f;
-              float animY = (float) Math.toRadians(clamp(p.headY, -7.0f, 7.0f)) * w * 0.22f;
-              float animZ = (float) Math.toRadians(clamp(p.headZ, -4.0f, 4.0f)) * w * 0.18f;
-
-              model.head.xRot = clamp(vanillaHeadX * pitchTracking + animX,
-                      (float) Math.toRadians(-50), (float) Math.toRadians(50));
-              model.head.yRot = clamp(vanillaHeadY * yawTracking + animY,
-                      (float) Math.toRadians(-55), (float) Math.toRadians(55));
-              model.head.zRot = clamp(vanillaHeadZ + animZ,
-                      (float) Math.toRadians(-8), (float) Math.toRadians(8));
-          }
-
-          private static float trackingForRoot(float degrees) {
-              if (degrees >= 120.0f) return 0.08f;
-              if (degrees >= 70.0f) return 0.18f;
-              if (degrees >= 35.0f) return 0.45f;
-              if (degrees >= 18.0f) return 0.72f;
-              return 1.0f;
-          }
-
-          private static float clamp(float value, float min, float max) {
-              return Math.max(min, Math.min(max, value));
-          }
-
-          '''
-          p.write_text(s[:start] + new + s[end:])
-          PY
-          chmod +x work/gradlew
-
-      - name: Build and reobfuscate
-        working-directory: work
-        run: ./gradlew --no-daemon clean build reobfJar --stacktrace
-
-      - name: Inspect JAR
-        shell: bash
-        run: |
-          set -euxo pipefail
-          ls -lah work/build/libs
-          JAR=$(find work/build/libs -maxdepth 1 -name '*.jar' ! -name '*sources*' | head -1)
-          jar tf "$JAR" | grep 'META-INF/mods.toml'
-          jar tf "$JAR" | grep 'klearcombat.mixins.json'
-          jar tf "$JAR" | grep 'klearcombat.refmap.json'
-          jar tf "$JAR" | grep 'dev/klearcombat/'
-          if jar tf "$JAR" | grep -q 'com/example/examplemod'; then exit 1; fi
-          if jar tf "$JAR" | grep -qi 'examplemod'; then exit 1; fi
-          mkdir -p out
-          cp "$JAR" out/KlearCombatAnimations-Forge-1.20.1-v2.0.1.jar
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: KlearCombatAnimations-Forge-1.20.1-v2.0.1
-          path: out/KlearCombatAnimations-Forge-1.20.1-v2.0.1.jar
+      - run: echo "CI temporarily paused while v2.0.2 source chunks are uploaded"
