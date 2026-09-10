@@ -44,7 +44,6 @@ public final class ArrowRipClient implements ClientModInitializer {
             return;
         }
 
-        // Capture the server's stuck-arrow count, then hide vanilla stuck arrows locally.
         int trackedArrows = p.getStuckArrowCount();
         if (trackedArrows > 0) {
             visualArrowCount = Math.max(visualArrowCount, trackedArrows);
@@ -59,7 +58,6 @@ public final class ArrowRipClient implements ClientModInitializer {
         if (bleedTicks > 0) bleedTicks--;
         if (dripCooldown > 0) dripCooldown--;
 
-        // Custom recurring blood while an arrow is still lodged, and briefly after removal.
         if ((visualArrowCount > 0 || bleedTicks > 0) && dripCooldown <= 0) {
             spawnBloodDrip(client, p, visualArrowCount > 0 ? 3 : 2);
             dripCooldown = visualArrowCount > 0 ? 4 + client.world.random.nextInt(5) : 7 + client.world.random.nextInt(7);
@@ -67,10 +65,22 @@ public final class ArrowRipClient implements ClientModInitializer {
 
         if (pullKey.isPressed() && visualArrowCount > 0) {
             holdTicks++;
-            if (holdTicks == 1 || holdTicks == 7 || holdTicks == 13) p.swingHand(Hand.MAIN_HAND);
-            if (holdTicks >= 18) {
+            // Reach -> grab -> brace. These staggered arm swings make the hand visibly move toward the lodged arrow.
+            if (holdTicks == 1) {
+                p.swingHand(Hand.MAIN_HAND);
+                p.playSound(SoundEvents.ITEM_ARMOR_EQUIP_LEATHER.value(), 0.18f, 1.35f);
+            }
+            if (holdTicks == 6) {
+                p.swingHand(Hand.MAIN_HAND);
+            }
+            if (holdTicks == 12) {
+                p.swingHand(Hand.MAIN_HAND);
+                p.playSound(SoundEvents.ENTITY_ARROW_HIT_PLAYER, 0.16f, 1.25f);
+            }
+            // Hold the grip for a few ticks, then yank the arrow free.
+            if (holdTicks >= 20) {
                 visualArrowCount--;
-                animationTicks = 14;
+                animationTicks = 16;
                 bleedTicks = Math.max(bleedTicks, 90);
                 holdTicks = 0;
                 ripArrow(client, p);
@@ -81,6 +91,7 @@ public final class ArrowRipClient implements ClientModInitializer {
     }
 
     private static void ripArrow(MinecraftClient client, PlayerEntity p) {
+        // Strong backward yank animation.
         p.swingHand(Hand.MAIN_HAND);
         p.playSound(SoundEvents.ENTITY_PLAYER_HURT, 0.55f, 0.72f);
         p.playSound(SoundEvents.ENTITY_SLIME_SQUISH_SMALL, 0.38f, 0.58f);
@@ -112,7 +123,6 @@ public final class ArrowRipClient implements ClientModInitializer {
                     p.getX() + ox, sourceY, p.getZ() + oz, vx, vy, vz);
         }
 
-        // A few droplets close to the feet make the blood look like it reached the ground.
         if (client.world.random.nextInt(3) == 0) {
             client.world.addParticleClient(ParticleTypes.DAMAGE_INDICATOR,
                     p.getX() + (client.world.random.nextDouble() - 0.5) * 0.42,
@@ -123,8 +133,9 @@ public final class ArrowRipClient implements ClientModInitializer {
     }
 
     private static void animatePull(MinecraftClient client, PlayerEntity p, int left) {
-        if (left == 10 || left == 6 || left == 2) p.swingHand(Hand.MAIN_HAND);
-        if (left <= 9 && left >= 2 && client.world.random.nextBoolean()) {
+        // Follow-through: hand snaps backward, relaxes, then lowers.
+        if (left == 14 || left == 9 || left == 4) p.swingHand(Hand.MAIN_HAND);
+        if (left <= 12 && left >= 2 && client.world.random.nextBoolean()) {
             client.world.addParticleClient(ParticleTypes.DAMAGE_INDICATOR,
                     p.getX() + (client.world.random.nextDouble() - 0.5) * 0.28,
                     p.getY() + 0.15 + client.world.random.nextDouble() * 0.35,
