@@ -11,19 +11,17 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.particle.DustParticleEffect;
-import net.minecraft.particle.ParticleTypes;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
-import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 
 public final class ArrowRipClient implements ClientModInitializer {
     private static KeyBinding pullKey;
     private static final KeyBinding.Category CATEGORY = KeyBinding.Category.create(Identifier.of("arrowrip", "main"));
-    private static final DustParticleEffect BLOOD = new DustParticleEffect(new Vector3f(0.48f, 0.01f, 0.01f), 1.15f);
-    private static final DustParticleEffect DARK_BLOOD = new DustParticleEffect(new Vector3f(0.22f, 0.0f, 0.0f), 1.35f);
+    private static final DustParticleEffect BLOOD = new DustParticleEffect(0x7A0202, 1.15f);
+    private static final DustParticleEffect DARK_BLOOD = new DustParticleEffect(0x380000, 1.35f);
     private static int holdTicks = 0;
     private static int animationTicks = 0;
     private static int visualArrowCount = 0;
