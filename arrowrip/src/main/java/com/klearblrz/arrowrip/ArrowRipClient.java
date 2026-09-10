@@ -6,21 +6,31 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.particle.DustParticleEffect;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.Vec3d;
+import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 
 public final class ArrowRipClient implements ClientModInitializer {
     private static KeyBinding pullKey;
     private static final KeyBinding.Category CATEGORY = KeyBinding.Category.create(Identifier.of("arrowrip", "main"));
+    private static final DustParticleEffect BLOOD = new DustParticleEffect(new Vector3f(0.48f, 0.01f, 0.01f), 1.15f);
+    private static final DustParticleEffect DARK_BLOOD = new DustParticleEffect(new Vector3f(0.22f, 0.0f, 0.0f), 1.35f);
     private static int holdTicks = 0;
     private static int animationTicks = 0;
     private static int visualArrowCount = 0;
     private static int bleedTicks = 0;
     private static int dripCooldown = 0;
+    private static int groundBloodTicks = 0;
+    private static double groundBloodX, groundBloodY, groundBloodZ;
 
     @Override
     public void onInitializeClient() {
@@ -41,6 +51,7 @@ public final class ArrowRipClient implements ClientModInitializer {
             visualArrowCount = 0;
             bleedTicks = 0;
             dripCooldown = 0;
+            groundBloodTicks = 0;
             return;
         }
 
@@ -63,21 +74,22 @@ public final class ArrowRipClient implements ClientModInitializer {
             dripCooldown = visualArrowCount > 0 ? 4 + client.world.random.nextInt(5) : 7 + client.world.random.nextInt(7);
         }
 
+        if (groundBloodTicks > 0) {
+            groundBloodTicks--;
+            if (groundBloodTicks % 3 == 0) spawnGroundBlood(client);
+        }
+
         if (pullKey.isPressed() && visualArrowCount > 0) {
             holdTicks++;
-            // Reach -> grab -> brace. These staggered arm swings make the hand visibly move toward the lodged arrow.
             if (holdTicks == 1) {
                 p.swingHand(Hand.MAIN_HAND);
                 p.playSound(SoundEvents.ITEM_ARMOR_EQUIP_LEATHER.value(), 0.18f, 1.35f);
             }
-            if (holdTicks == 6) {
-                p.swingHand(Hand.MAIN_HAND);
-            }
+            if (holdTicks == 6) p.swingHand(Hand.MAIN_HAND);
             if (holdTicks == 12) {
                 p.swingHand(Hand.MAIN_HAND);
                 p.playSound(SoundEvents.ENTITY_ARROW_HIT_PLAYER, 0.16f, 1.25f);
             }
-            // Hold the grip for a few ticks, then yank the arrow free.
             if (holdTicks >= 20) {
                 visualArrowCount--;
                 animationTicks = 16;
@@ -91,7 +103,6 @@ public final class ArrowRipClient implements ClientModInitializer {
     }
 
     private static void ripArrow(MinecraftClient client, PlayerEntity p) {
-        // Strong backward yank animation.
         p.swingHand(Hand.MAIN_HAND);
         p.playSound(SoundEvents.ENTITY_PLAYER_HURT, 0.55f, 0.72f);
         p.playSound(SoundEvents.ENTITY_SLIME_SQUISH_SMALL, 0.38f, 0.58f);
@@ -105,10 +116,52 @@ public final class ArrowRipClient implements ClientModInitializer {
             double vx = (client.world.random.nextDouble() - 0.5) * 0.09;
             double vy = -0.025 - client.world.random.nextDouble() * 0.05;
             double vz = (client.world.random.nextDouble() - 0.5) * 0.09;
-            client.world.addParticleClient(ParticleTypes.DAMAGE_INDICATOR,
+            client.world.addParticleClient(i % 3 == 0 ? DARK_BLOOD : BLOOD,
                     p.getX() + ox, chestY + oy, p.getZ() + oz, vx, vy, vz);
         }
         spawnBloodDrip(client, p, 14);
+        dropBloodyArrow(client, p);
+    }
+
+    private static void dropBloodyArrow(MinecraftClient client, PlayerEntity p) {
+        Vec3d look = p.getRotationVec(1.0f);
+        double x = p.getX() + look.x * 0.28;
+        double y = p.getY() + 0.95;
+        double z = p.getZ() + look.z * 0.28;
+
+        ItemEntity arrow = new ItemEntity(client.world, x, y, z, new ItemStack(Items.ARROW));
+        arrow.setPickupDelayInfinite();
+        arrow.setVelocity(look.x * 0.08, 0.12, look.z * 0.08);
+        client.world.addEntity(arrow);
+
+        groundBloodX = x + look.x * 0.18;
+        groundBloodY = p.getY() + 0.035;
+        groundBloodZ = z + look.z * 0.18;
+        groundBloodTicks = 240;
+
+        for (int i = 0; i < 18; i++) {
+            client.world.addParticleClient(i % 2 == 0 ? BLOOD : DARK_BLOOD,
+                    x + (client.world.random.nextDouble() - 0.5) * 0.18,
+                    y + (client.world.random.nextDouble() - 0.5) * 0.12,
+                    z + (client.world.random.nextDouble() - 0.5) * 0.18,
+                    (client.world.random.nextDouble() - 0.5) * 0.025,
+                    -0.03 - client.world.random.nextDouble() * 0.025,
+                    (client.world.random.nextDouble() - 0.5) * 0.025);
+        }
+        spawnGroundBlood(client);
+    }
+
+    private static void spawnGroundBlood(MinecraftClient client) {
+        int amount = groundBloodTicks > 180 ? 5 : 2;
+        for (int i = 0; i < amount; i++) {
+            double angle = client.world.random.nextDouble() * Math.PI * 2.0;
+            double radius = client.world.random.nextDouble() * 0.38;
+            client.world.addParticleClient(i % 3 == 0 ? DARK_BLOOD : BLOOD,
+                    groundBloodX + Math.cos(angle) * radius,
+                    groundBloodY,
+                    groundBloodZ + Math.sin(angle) * radius,
+                    0.0, 0.001, 0.0);
+        }
     }
 
     private static void spawnBloodDrip(MinecraftClient client, PlayerEntity p, int amount) {
@@ -119,12 +172,11 @@ public final class ArrowRipClient implements ClientModInitializer {
             double vx = (client.world.random.nextDouble() - 0.5) * 0.025;
             double vy = -0.045 - client.world.random.nextDouble() * 0.035;
             double vz = (client.world.random.nextDouble() - 0.5) * 0.025;
-            client.world.addParticleClient(ParticleTypes.DAMAGE_INDICATOR,
+            client.world.addParticleClient(i % 3 == 0 ? DARK_BLOOD : BLOOD,
                     p.getX() + ox, sourceY, p.getZ() + oz, vx, vy, vz);
         }
-
         if (client.world.random.nextInt(3) == 0) {
-            client.world.addParticleClient(ParticleTypes.DAMAGE_INDICATOR,
+            client.world.addParticleClient(DARK_BLOOD,
                     p.getX() + (client.world.random.nextDouble() - 0.5) * 0.42,
                     p.getY() + 0.05,
                     p.getZ() + (client.world.random.nextDouble() - 0.5) * 0.42,
@@ -133,10 +185,9 @@ public final class ArrowRipClient implements ClientModInitializer {
     }
 
     private static void animatePull(MinecraftClient client, PlayerEntity p, int left) {
-        // Follow-through: hand snaps backward, relaxes, then lowers.
         if (left == 14 || left == 9 || left == 4) p.swingHand(Hand.MAIN_HAND);
         if (left <= 12 && left >= 2 && client.world.random.nextBoolean()) {
-            client.world.addParticleClient(ParticleTypes.DAMAGE_INDICATOR,
+            client.world.addParticleClient(BLOOD,
                     p.getX() + (client.world.random.nextDouble() - 0.5) * 0.28,
                     p.getY() + 0.15 + client.world.random.nextDouble() * 0.35,
                     p.getZ() + (client.world.random.nextDouble() - 0.5) * 0.28,
