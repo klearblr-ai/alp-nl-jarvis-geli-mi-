@@ -10,10 +10,12 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.Hand;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 public final class ArrowRipClient implements ClientModInitializer {
     private static KeyBinding pullKey;
+    private static final KeyBinding.Category CATEGORY = KeyBinding.Category.create(Identifier.of("arrowrip", "main"));
     private static int holdTicks = 0;
     private static int animationTicks = 0;
     private static int hiddenArrows = 0;
@@ -25,7 +27,7 @@ public final class ArrowRipClient implements ClientModInitializer {
                 "key.arrowrip.pull",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_G,
-                "category.arrowrip"
+                CATEGORY
         ));
         ClientTickEvents.END_CLIENT_TICK.register(ArrowRipClient::tick);
     }
