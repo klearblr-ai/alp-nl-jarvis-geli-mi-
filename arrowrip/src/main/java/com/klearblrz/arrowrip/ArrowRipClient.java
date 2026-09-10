@@ -18,8 +18,9 @@ public final class ArrowRipClient implements ClientModInitializer {
     private static final KeyBinding.Category CATEGORY = KeyBinding.Category.create(Identifier.of("arrowrip", "main"));
     private static int holdTicks = 0;
     private static int animationTicks = 0;
-    private static int hiddenArrows = 0;
-    private static int lastServerArrowCount = 0;
+    private static int visualArrowCount = 0;
+    private static int bleedTicks = 0;
+    private static int dripCooldown = 0;
 
     @Override
     public void onInitializeClient() {
@@ -37,21 +38,40 @@ public final class ArrowRipClient implements ClientModInitializer {
         if (p == null || client.world == null) {
             holdTicks = 0;
             animationTicks = 0;
+            visualArrowCount = 0;
+            bleedTicks = 0;
+            dripCooldown = 0;
             return;
         }
-        int serverArrows = p.getStuckArrowCount();
-        if (serverArrows < lastServerArrowCount) hiddenArrows = Math.min(hiddenArrows, serverArrows);
-        lastServerArrowCount = serverArrows;
+
+        // Capture the server's stuck-arrow count, then hide vanilla stuck arrows locally.
+        int trackedArrows = p.getStuckArrowCount();
+        if (trackedArrows > 0) {
+            visualArrowCount = Math.max(visualArrowCount, trackedArrows);
+            p.setStuckArrowCount(0);
+        }
+
         if (animationTicks > 0) {
             animationTicks--;
             animatePull(client, p, animationTicks);
         }
-        if (pullKey.isPressed() && serverArrows - hiddenArrows > 0) {
+
+        if (bleedTicks > 0) bleedTicks--;
+        if (dripCooldown > 0) dripCooldown--;
+
+        // Custom recurring blood while an arrow is still lodged, and briefly after removal.
+        if ((visualArrowCount > 0 || bleedTicks > 0) && dripCooldown <= 0) {
+            spawnBloodDrip(client, p, visualArrowCount > 0 ? 3 : 2);
+            dripCooldown = visualArrowCount > 0 ? 4 + client.world.random.nextInt(5) : 7 + client.world.random.nextInt(7);
+        }
+
+        if (pullKey.isPressed() && visualArrowCount > 0) {
             holdTicks++;
             if (holdTicks == 1 || holdTicks == 7 || holdTicks == 13) p.swingHand(Hand.MAIN_HAND);
             if (holdTicks >= 18) {
-                hiddenArrows++;
+                visualArrowCount--;
                 animationTicks = 14;
+                bleedTicks = Math.max(bleedTicks, 90);
                 holdTicks = 0;
                 ripArrow(client, p);
             }
@@ -65,24 +85,40 @@ public final class ArrowRipClient implements ClientModInitializer {
         p.playSound(SoundEvents.ENTITY_PLAYER_HURT, 0.55f, 0.72f);
         p.playSound(SoundEvents.ENTITY_SLIME_SQUISH_SMALL, 0.38f, 0.58f);
         p.playSound(SoundEvents.ENTITY_ARROW_HIT_PLAYER, 0.32f, 0.82f);
+
         double chestY = p.getY() + p.getHeight() * 0.64;
-        for (int i = 0; i < 22; i++) {
+        for (int i = 0; i < 28; i++) {
             double ox = (client.world.random.nextDouble() - 0.5) * 0.42;
             double oy = (client.world.random.nextDouble() - 0.5) * 0.38;
             double oz = (client.world.random.nextDouble() - 0.5) * 0.42;
-            double vx = (client.world.random.nextDouble() - 0.5) * 0.08;
-            double vy = -0.025 - client.world.random.nextDouble() * 0.045;
-            double vz = (client.world.random.nextDouble() - 0.5) * 0.08;
+            double vx = (client.world.random.nextDouble() - 0.5) * 0.09;
+            double vy = -0.025 - client.world.random.nextDouble() * 0.05;
+            double vz = (client.world.random.nextDouble() - 0.5) * 0.09;
             client.world.addParticleClient(ParticleTypes.DAMAGE_INDICATOR,
                     p.getX() + ox, chestY + oy, p.getZ() + oz, vx, vy, vz);
         }
-        for (int i = 0; i < 12; i++) {
-            double t = i / 11.0;
+        spawnBloodDrip(client, p, 14);
+    }
+
+    private static void spawnBloodDrip(MinecraftClient client, PlayerEntity p, int amount) {
+        double sourceY = p.getY() + p.getHeight() * (0.48 + client.world.random.nextDouble() * 0.22);
+        for (int i = 0; i < amount; i++) {
+            double ox = (client.world.random.nextDouble() - 0.5) * 0.34;
+            double oz = (client.world.random.nextDouble() - 0.5) * 0.34;
+            double vx = (client.world.random.nextDouble() - 0.5) * 0.025;
+            double vy = -0.045 - client.world.random.nextDouble() * 0.035;
+            double vz = (client.world.random.nextDouble() - 0.5) * 0.025;
             client.world.addParticleClient(ParticleTypes.DAMAGE_INDICATOR,
-                    p.getX() + 0.26 - t * 0.10,
-                    chestY - t * 1.05,
-                    p.getZ() + 0.18 + t * 0.08,
-                    0.0, -0.02, 0.0);
+                    p.getX() + ox, sourceY, p.getZ() + oz, vx, vy, vz);
+        }
+
+        // A few droplets close to the feet make the blood look like it reached the ground.
+        if (client.world.random.nextInt(3) == 0) {
+            client.world.addParticleClient(ParticleTypes.DAMAGE_INDICATOR,
+                    p.getX() + (client.world.random.nextDouble() - 0.5) * 0.42,
+                    p.getY() + 0.05,
+                    p.getZ() + (client.world.random.nextDouble() - 0.5) * 0.42,
+                    0.0, 0.005, 0.0);
         }
     }
 
