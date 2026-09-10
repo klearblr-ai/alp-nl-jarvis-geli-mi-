@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "arrowrip",
+  "version": "${version}",
+  "name": "Arrow Rip",
+  "description": "Client-side arrow pulling animation, blood droplets and impact effects.",
+  "authors": ["klearblrZ + OpenAI"],
+  "environment": "client",
+  "entrypoints": {"client": ["com.klearblrz.arrowrip.ArrowRipClient"]},
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "=1.21.11",
+    "java": ">=21",
+    "fabric-api": ">=0.141.3+1.21.11"
+  }
+}
