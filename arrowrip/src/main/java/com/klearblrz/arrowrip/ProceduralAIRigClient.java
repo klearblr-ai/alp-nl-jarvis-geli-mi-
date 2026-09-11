@@ -8,14 +8,12 @@ import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.BlockItem;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import org.lwjgl.glfw.GLFW;
 
-/**
- * Automatic client-side full-body motion brain. It does not replay one fixed clip:
- * every tick it derives continuous motion intent from movement, combat, aim and health.
- */
+/** Automatic client-side full-body motion brain. */
 public final class ProceduralAIRigClient implements ClientModInitializer {
     private static KeyBinding toggleKey;
     private static boolean enabled = true;
@@ -25,6 +23,9 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
     private static float focus;
     private static float strain;
     private static float turnVelocity;
+    private static float walk;
+    private static float run;
+    private static float bridge;
     private static float lastYaw;
     private static boolean initialized;
 
@@ -39,7 +40,7 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (toggleKey.wasPressed()) {
                 enabled = !enabled;
-                combat = energy = focus = strain = turnVelocity = 0.0F;
+                combat = energy = focus = strain = turnVelocity = walk = run = bridge = 0.0F;
                 initialized = false;
                 if (client.player != null) {
                     client.player.sendMessage(Text.literal(
@@ -53,7 +54,7 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
     private static void tick(MinecraftClient client) {
         PlayerEntity p = client.player;
         if (!enabled || p == null || client.world == null) {
-            combat = energy = focus = strain = turnVelocity = 0.0F;
+            combat = energy = focus = strain = turnVelocity = walk = run = bridge = 0.0F;
             initialized = false;
             return;
         }
@@ -68,9 +69,25 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
         turnVelocity = smooth(turnVelocity, MathHelper.clamp(rawTurn, -1.0F, 1.0F), 0.26F);
 
         double horizontal = Math.sqrt(p.getVelocity().x * p.getVelocity().x + p.getVelocity().z * p.getVelocity().z);
+        float move = MathHelper.clamp((float)(horizontal * 5.2), 0.0F, 1.0F);
+        float wantedRun = p.isSprinting() ? Math.max(0.72F, move) : 0.0F;
+        float wantedWalk = p.isOnGround() && !p.isSprinting() ? move : 0.0F;
+
+        boolean holdingBlock = p.getMainHandStack().getItem() instanceof BlockItem
+                || p.getOffHandStack().getItem() instanceof BlockItem;
+        boolean placing = client.options.useKey.isPressed() || AutoPvPAnimationClient.getPlaceTicks() > 0;
+        boolean movingFastEnough = horizontal > 0.045;
+        float wantedBridge = holdingBlock && placing && movingFastEnough && p.isOnGround() ? 1.0F : 0.0F;
+        if (wantedBridge > 0.0F && p.isSneaking()) wantedBridge = 0.82F;
+
+        walk = smooth(walk, wantedWalk, wantedWalk > walk ? 0.32F : 0.18F);
+        run = smooth(run, wantedRun, wantedRun > run ? 0.36F : 0.16F);
+        bridge = smooth(bridge, wantedBridge, wantedBridge > bridge ? 0.48F : 0.22F);
+
         float wantedEnergy = MathHelper.clamp((float)(horizontal * 4.6), 0.0F, 1.0F);
         if (p.isSprinting()) wantedEnergy = Math.max(wantedEnergy, 0.82F);
         if (!p.isOnGround()) wantedEnergy = Math.max(wantedEnergy, 0.45F);
+        if (bridge > 0.15F) wantedEnergy = Math.max(wantedEnergy, 0.72F);
 
         Entity target = client.targetedEntity;
         float wantedFocus = 0.0F;
@@ -104,4 +121,7 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
     public static float focus() { return focus; }
     public static float strain() { return strain; }
     public static float turnVelocity() { return turnVelocity; }
+    public static float walk() { return walk; }
+    public static float run() { return run; }
+    public static float bridge() { return bridge; }
 }
