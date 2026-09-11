@@ -14,7 +14,8 @@
     "BlenderRigGeometryMixin",
     "BlenderRigAnimationMixin",
     "AutoPlayFullBodyMixin",
-    "AIRigToggleVisibilityMixin"
+    "AIRigToggleVisibilityMixin",
+    "CinematicCameraAIMixin"
   ],
   "injectors": {
     "defaultRequire": 1
