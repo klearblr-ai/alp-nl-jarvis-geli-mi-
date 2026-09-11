@@ -8,7 +8,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.sound.EntityTrackingSoundInstance;
-import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.sound.SoundCategory;
@@ -76,7 +75,7 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
     }
 
     public static void playRandomVoice(MinecraftClient client) {
-        if (client == null) return;
+        if (client == null || client.player == null) return;
 
         int idx;
         if (LINES.length <= 1) idx = 0;
@@ -88,27 +87,26 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
 
         subtitle = LINES[idx];
         subtitleTicks = subtitle.length() > 24 ? 122 : 84;
-        subtitleTarget = "";
-        PlayerEntity speaker = null;
-        if (client.targetedEntity instanceof PlayerEntity target && client.player != null && target != client.player) {
-            speaker = target;
-            subtitleTarget = target.getName().getString();
+
+        PlayerEntity target = null;
+        if (client.targetedEntity instanceof PlayerEntity looked && looked != client.player) {
+            target = looked;
         }
 
+        // Bi o, bi sen: hedef varsa %50 hedef, %50 sen. Hedef yoksa hep sen.
+        boolean targetSpeaks = target != null && ThreadLocalRandom.current().nextBoolean();
+        PlayerEntity speaker = targetSpeaks ? target : client.player;
+        subtitleTarget = speaker.getName().getString();
+
         if (chatMode && client.inGameHud != null) {
-            String prefix = subtitleTarget.isEmpty() ? "[ANIME] " : "[" + subtitleTarget + "] ";
-            client.inGameHud.getChatHud().addMessage(Text.literal(prefix + subtitle));
+            client.inGameHud.getChatHud().addMessage(Text.literal("[" + subtitleTarget + "] " + subtitle));
         }
 
         try {
             Identifier id = Identifier.of("arrowrip", SOUNDS[idx]);
             SoundEvent event = SoundEvent.of(id);
-            if (speaker != null) {
-                client.getSoundManager().play(new EntityTrackingSoundInstance(
-                        event, SoundCategory.MASTER, 1.0f, 0.90f, speaker, System.nanoTime()));
-            } else {
-                client.getSoundManager().play(PositionedSoundInstance.master(event, 0.90f, 1.0f));
-            }
+            client.getSoundManager().play(new EntityTrackingSoundInstance(
+                    event, SoundCategory.MASTER, 1.0f, 0.90f, speaker, System.nanoTime()));
         } catch (Throwable ignored) {
         }
     }
