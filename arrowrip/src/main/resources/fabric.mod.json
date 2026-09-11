@@ -3,10 +3,10 @@
   "id": "arrowrip",
   "version": "${version}",
   "name": "Arrow Rip",
-  "description": "Client-side combat visuals, adaptive music, exact-beat VIZ HUD, full-body aura and grin mouth overlay.",
+  "description": "Client-side combat visuals, adaptive music, exact-beat VIZ HUD, full-body aura, grin mouth overlay and random Japanese voice lines.",
   "authors": ["klearblrZ + OpenAI"],
   "environment": "client",
-  "entrypoints": {"client": ["com.klearblrz.arrowrip.ArrowRipClient", "com.klearblrz.arrowrip.BloodBendingClient", "com.klearblrz.arrowrip.BrutalFinisherClient", "com.klearblrz.arrowrip.ExactBeatVisualizerClient", "com.klearblrz.arrowrip.BlueAuraClient", "com.klearblrz.arrowrip.MouthOverlayClient"]},
+  "entrypoints": {"client": ["com.klearblrz.arrowrip.ArrowRipClient", "com.klearblrz.arrowrip.BloodBendingClient", "com.klearblrz.arrowrip.BrutalFinisherClient", "com.klearblrz.arrowrip.ExactBeatVisualizerClient", "com.klearblrz.arrowrip.BlueAuraClient", "com.klearblrz.arrowrip.MouthOverlayClient", "com.klearblrz.arrowrip.JapaneseVoiceClient"]},
   "depends": {
     "fabricloader": ">=0.18.4",
     "minecraft": "=1.21.11",
