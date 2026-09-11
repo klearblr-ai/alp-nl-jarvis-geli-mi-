@@ -24,22 +24,30 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 public final class BrutalFinisherClient implements ClientModInitializer {
     private static final DustParticleEffect BLOOD = new DustParticleEffect(0x8B0000, 1.35f);
     private static final DustParticleEffect DARK = new DustParticleEffect(0x300000, 1.55f);
     private static KeyBinding finisherKey;
 
-    // Level Up beat map, detected at about 123.05 BPM. Values are client ticks from song start.
-    private static final int[] BEATS = {
-            1,11,21,31,41,51,60,70,80,90,100,110,119,129,139,149,159,169,
-            178,188,198,208,218,228,238,248,257,267,277,287,297,306
+    private static final Track[] TRACKS = {
+            new Track("/assets/arrowrip/dark_knight.mp3", 129.19921875),
+            new Track("/assets/arrowrip/hxme_invasion.mp3", 123.046875),
+            new Track("/assets/arrowrip/level_up.mp3", 123.046875),
+            new Track("/assets/arrowrip/our_wxrld.mp3", 117.45383522727273),
+            new Track("/assets/arrowrip/rage_quit.mp3", 117.45383522727273)
     };
 
     private static UUID lastCombatTarget;
     private static int combatMemoryTicks;
     private static boolean finisherActive;
     private static int finisherTick;
+    private static int beatIndex;
+    private static int nextBeatTick;
+    private static int beatIntervalTicks = 10;
+    private static int finisherEndTick = 320;
+    private static Track activeTrack = TRACKS[0];
     private static Vec3d finisherOrigin = Vec3d.ZERO;
     private static final List<SwordVisual> swords = new ArrayList<>();
     private static ArmorStandEntity headVisual;
@@ -58,6 +66,7 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         if (self == null || client.world == null) {
             clearVisuals();
             finisherActive = false;
+            stopMusic();
             return;
         }
 
@@ -67,7 +76,6 @@ public final class BrutalFinisherClient implements ClientModInitializer {
             combatMemoryTicks = 50;
         }
 
-        // Automatic trigger when the recently attacked player dies.
         if (!finisherActive && lastCombatTarget != null && combatMemoryTicks > 0) {
             PlayerEntity target = client.world.getPlayerByUuid(lastCombatTarget);
             if (target != null && (!target.isAlive() || target.getHealth() <= 0.0f)) {
@@ -77,7 +85,6 @@ public final class BrutalFinisherClient implements ClientModInitializer {
             }
         }
 
-        // H is a manual preview/test on the player you are looking at.
         while (finisherKey.wasPressed()) {
             if (client.targetedEntity instanceof PlayerEntity target && target != self && self.distanceTo(target) < 8.0f) {
                 startFinisher(client, self, new Vec3d(target.getX(), target.getY(), target.getZ()));
@@ -91,19 +98,24 @@ public final class BrutalFinisherClient implements ClientModInitializer {
 
     private static void startFinisher(MinecraftClient client, PlayerEntity self, Vec3d origin) {
         clearVisuals();
+        stopMusic();
         finisherActive = true;
         finisherTick = 0;
+        beatIndex = 0;
+        activeTrack = TRACKS[ThreadLocalRandom.current().nextInt(TRACKS.length)];
+        beatIntervalTicks = Math.max(8, Math.round((float)(1200.0 / activeTrack.bpm)));
+        nextBeatTick = 1;
+        finisherEndTick = beatIntervalTicks * 32 + 52;
         finisherOrigin = origin;
         self.swingHand(Hand.MAIN_HAND);
         self.playSound(SoundEvents.ENTITY_PLAYER_ATTACK_SWEEP, 0.65f, 0.72f);
-        startMusic();
+        startMusic(activeTrack.path);
         bloodBurst(client, origin.add(0, 0.95, 0), 28);
     }
 
     private static void tickFinisher(MinecraftClient client, PlayerEntity self) {
         finisherTick++;
 
-        // User asked not to move during the sequence: suppress movement keys locally.
         client.options.forwardKey.setPressed(false);
         client.options.backKey.setPressed(false);
         client.options.leftKey.setPressed(false);
@@ -111,26 +123,26 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         client.options.jumpKey.setPressed(false);
         client.options.sneakKey.setPressed(false);
 
-        for (int i = 0; i < BEATS.length; i++) {
-            if (finisherTick == BEATS[i]) {
-                beatStab(client, self, i);
-                break;
-            }
+        if (beatIndex < 32 && finisherTick >= nextBeatTick) {
+            beatStab(client, self, beatIndex);
+            beatIndex++;
+            nextBeatTick += beatIntervalTicks;
         }
 
-        if (finisherTick == BEATS[BEATS.length - 1] + 2) {
+        if (beatIndex >= 32 && finisherTick == nextBeatTick + 2) {
             decapitationEffect(client);
         }
 
-        if (finisherTick > BEATS[BEATS.length - 1] + 50) {
+        if (finisherTick > finisherEndTick) {
             finisherActive = false;
+            stopMusic();
         }
     }
 
-    private static void beatStab(MinecraftClient client, PlayerEntity self, int beatIndex) {
-        double a = beatIndex * 2.3999632297;
-        double radius = 0.72 + (beatIndex % 3) * 0.10;
-        double y = finisherOrigin.y + 0.45 + (beatIndex % 4) * 0.27;
+    private static void beatStab(MinecraftClient client, PlayerEntity self, int index) {
+        double a = index * 2.3999632297;
+        double radius = 0.72 + (index % 3) * 0.10;
+        double y = finisherOrigin.y + 0.45 + (index % 4) * 0.27;
         double x = finisherOrigin.x + Math.cos(a) * radius;
         double z = finisherOrigin.z + Math.sin(a) * radius;
 
@@ -138,16 +150,16 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         stand.setInvisible(true);
         stand.setNoGravity(true);
         stand.setShowArms(true);
-        stand.equipStack(EquipmentSlot.MAINHAND, new ItemStack(selectSword(beatIndex)));
+        stand.equipStack(EquipmentSlot.MAINHAND, new ItemStack(selectSword(index)));
         stand.setYaw((float)Math.toDegrees(Math.atan2(finisherOrigin.z - z, finisherOrigin.x - x)) - 90f);
-        stand.setRightArmRotation(new EulerAngle(-82f + (beatIndex % 3) * 8f, 0f, 0f));
+        stand.setRightArmRotation(new EulerAngle(-82f + (index % 3) * 8f, 0f, 0f));
         client.world.addEntity(stand);
-        swords.add(new SwordVisual(stand, 90));
+        swords.add(new SwordVisual(stand, Math.max(70, beatIntervalTicks * 7)));
 
-        self.swingHand((beatIndex & 1) == 0 ? Hand.MAIN_HAND : Hand.OFF_HAND);
-        self.playSound((beatIndex % 4 == 0) ? SoundEvents.ENTITY_PLAYER_ATTACK_CRIT : SoundEvents.ENTITY_PLAYER_ATTACK_STRONG,
-                0.42f, 0.72f + (beatIndex % 5) * 0.055f);
-        bloodBurst(client, new Vec3d(finisherOrigin.x, y, finisherOrigin.z), beatIndex % 4 == 0 ? 34 : 18);
+        self.swingHand((index & 1) == 0 ? Hand.MAIN_HAND : Hand.OFF_HAND);
+        self.playSound((index % 4 == 0) ? SoundEvents.ENTITY_PLAYER_ATTACK_CRIT : SoundEvents.ENTITY_PLAYER_ATTACK_STRONG,
+                0.42f, 0.72f + (index % 5) * 0.055f);
+        bloodBurst(client, new Vec3d(finisherOrigin.x, y, finisherOrigin.z), index % 4 == 0 ? 34 : 18);
     }
 
     private static net.minecraft.item.Item selectSword(int i) {
@@ -214,14 +226,9 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         }
     }
 
-    private static void startMusic() {
-        try {
-            Player old = musicPlayer;
-            if (old != null) old.close();
-        } catch (Exception ignored) {}
-
+    private static void startMusic(String resourcePath) {
         Thread t = new Thread(() -> {
-            try (InputStream in = BrutalFinisherClient.class.getResourceAsStream("/assets/arrowrip/levelup.mp3")) {
+            try (InputStream in = BrutalFinisherClient.class.getResourceAsStream(resourcePath)) {
                 if (in == null) return;
                 Player p = new Player(in);
                 musicPlayer = p;
@@ -230,9 +237,17 @@ public final class BrutalFinisherClient implements ClientModInitializer {
             } finally {
                 musicPlayer = null;
             }
-        }, "ArrowRip-LevelUp-Music");
+        }, "ArrowRip-Random-Finisher-Music");
         t.setDaemon(true);
         t.start();
+    }
+
+    private static void stopMusic() {
+        try {
+            Player old = musicPlayer;
+            if (old != null) old.close();
+        } catch (Exception ignored) {}
+        musicPlayer = null;
     }
 
     private static void clearVisuals() {
@@ -242,6 +257,8 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         headVisual = null;
         headTick = 0;
     }
+
+    private record Track(String path, double bpm) {}
 
     private static final class SwordVisual {
         final ArmorStandEntity entity;
