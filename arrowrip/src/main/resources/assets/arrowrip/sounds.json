@@ -6,5 +6,6 @@
   "voice_madamada": {"sounds": ["arrowrip:voice_madamada"]},
   "voice_sugoi": {"sounds": ["arrowrip:voice_sugoi"]},
   "voice_nanda": {"sounds": ["arrowrip:voice_nanda"]},
-  "voice_kamuda": {"sounds": ["arrowrip:voice_kamuda"]}
+  "voice_kamuda": {"sounds": ["arrowrip:voice_kamuda"]},
+  "ultimate_scream": {"sounds": ["arrowrip:ultimate_scream"]}
 }
