@@ -15,7 +15,8 @@
     "BlenderRigAnimationMixin",
     "AutoPlayFullBodyMixin",
     "AIRigToggleVisibilityMixin",
-    "CinematicCameraAIMixin"
+    "CinematicCameraAIMixin",
+    "AllPlayersCombatAnimationMixin"
   ],
   "injectors": {
     "defaultRequire": 1
