@@ -3,21 +3,22 @@ package com.klearblrz.arrowrip;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.RenderPipelines;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
-/**
- * Crash-safe mouth controller.
- * The previous world-space textured quad was intentionally removed because
- * switching perspective with F5 could hit an unsafe render state on 1.21.11.
- * Position/size controls stay registered so they can be reused by the safer renderer later.
- */
 public final class MouthOverlayClient implements ClientModInitializer {
-    private static KeyBinding mouthKey, upKey, downKey, leftKey, rightKey, forwardKey, backKey, biggerKey, smallerKey, resetKey;
-    private static boolean enabled = false;
-    private static double offsetX, offsetY, offsetZ;
+    private static final Identifier MOUTH = Identifier.of("arrowrip", "textures/mouth_grin.png");
+    private static KeyBinding mouthKey, upKey, downKey, leftKey, rightKey, biggerKey, smallerKey, resetKey;
+    private static boolean enabled = true;
+    private static int offsetX = 0;
+    private static int offsetY = 0;
     private static float scale = 1.0f;
 
     @Override
@@ -27,8 +28,6 @@ public final class MouthOverlayClient implements ClientModInitializer {
         downKey = key("key.arrowrip.mouth_down", GLFW.GLFW_KEY_DOWN);
         leftKey = key("key.arrowrip.mouth_left", GLFW.GLFW_KEY_LEFT);
         rightKey = key("key.arrowrip.mouth_right", GLFW.GLFW_KEY_RIGHT);
-        forwardKey = key("key.arrowrip.mouth_forward", GLFW.GLFW_KEY_PAGE_UP);
-        backKey = key("key.arrowrip.mouth_back", GLFW.GLFW_KEY_PAGE_DOWN);
         biggerKey = key("key.arrowrip.mouth_bigger", GLFW.GLFW_KEY_KP_ADD);
         smallerKey = key("key.arrowrip.mouth_smaller", GLFW.GLFW_KEY_KP_SUBTRACT);
         resetKey = key("key.arrowrip.mouth_reset", GLFW.GLFW_KEY_HOME);
@@ -36,28 +35,44 @@ public final class MouthOverlayClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (mouthKey.wasPressed()) {
                 enabled = !enabled;
-                if (client.player != null) {
-                    client.player.sendMessage(Text.literal(enabled ? "Ağız ayarı: AÇIK" : "Ağız ayarı: KAPALI"), true);
-                }
+                if (client.player != null) client.player.sendMessage(Text.literal(enabled ? "Ağız: AÇIK" : "Ağız: KAPALI"), true);
             }
             if (!enabled) return;
 
             boolean changed = false;
-            while (upKey.wasPressed()) { offsetY += 0.015; changed = true; }
-            while (downKey.wasPressed()) { offsetY -= 0.015; changed = true; }
-            while (leftKey.wasPressed()) { offsetX -= 0.015; changed = true; }
-            while (rightKey.wasPressed()) { offsetX += 0.015; changed = true; }
-            while (forwardKey.wasPressed()) { offsetZ -= 0.008; changed = true; }
-            while (backKey.wasPressed()) { offsetZ += 0.008; changed = true; }
-            while (biggerKey.wasPressed()) { scale = Math.min(2.0f, scale + 0.05f); changed = true; }
+            while (upKey.wasPressed()) { offsetY -= 2; changed = true; }
+            while (downKey.wasPressed()) { offsetY += 2; changed = true; }
+            while (leftKey.wasPressed()) { offsetX -= 2; changed = true; }
+            while (rightKey.wasPressed()) { offsetX += 2; changed = true; }
+            while (biggerKey.wasPressed()) { scale = Math.min(2.2f, scale + 0.05f); changed = true; }
             while (smallerKey.wasPressed()) { scale = Math.max(0.35f, scale - 0.05f); changed = true; }
-            while (resetKey.wasPressed()) { offsetX = offsetY = offsetZ = 0.0; scale = 1.0f; changed = true; }
+            while (resetKey.wasPressed()) { offsetX = 0; offsetY = 0; scale = 1.0f; changed = true; }
 
             if (changed && client.player != null) {
-                client.player.sendMessage(Text.literal(String.format(
-                        "Ağız ayarı X %.2f Y %.2f Z %.2f %.2fx", offsetX, offsetY, offsetZ, scale)), true);
+                client.player.sendMessage(Text.literal("Ağız X " + offsetX + " Y " + offsetY + " Boyut " + String.format("%.2fx", scale)), true);
             }
         });
+
+        HudRenderCallback.EVENT.register((ctx, tickCounter) -> renderMouthHud(ctx));
+    }
+
+    private static void renderMouthHud(DrawContext ctx) {
+        if (!enabled) return;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.player == null || mc.world == null) return;
+        if (mc.options.getPerspective().isFirstPerson()) return;
+
+        try {
+            int sw = mc.getWindow().getScaledWidth();
+            int sh = mc.getWindow().getScaledHeight();
+            int w = Math.max(28, Math.round(86 * scale));
+            int h = Math.max(12, Math.round(34 * scale));
+            int x = sw / 2 - w / 2 + offsetX;
+            int y = sh / 2 - 67 + offsetY;
+            ctx.drawTexture(RenderPipelines.GUI_TEXTURED, MOUTH, x, y, 0.0f, 0.0f, w, h, 512, 256);
+        } catch (Throwable ignored) {
+            enabled = false;
+        }
     }
 
     private static KeyBinding key(String name, int glfw) {
