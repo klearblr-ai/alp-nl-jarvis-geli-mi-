@@ -2,16 +2,24 @@ package com.klearblrz.arrowrip;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
+import org.lwjgl.glfw.GLFW;
 
 /**
  * Lightweight client-side motion brain. It does not replay authored animation clips:
  * every tick it derives continuous motion intent from movement, combat, aim and health.
  */
 public final class ProceduralAIRigClient implements ClientModInitializer {
+    private static KeyBinding toggleKey;
+    private static boolean enabled = true;
+
     private static float combat;
     private static float energy;
     private static float focus;
@@ -22,12 +30,29 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        ClientTickEvents.END_CLIENT_TICK.register(ProceduralAIRigClient::tick);
+        toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.arrowrip.ai_fullbody_toggle",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_M,
+                ArrowRipClient.CATEGORY));
+
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (toggleKey.wasPressed()) {
+                enabled = !enabled;
+                combat = energy = focus = strain = turnVelocity = 0.0F;
+                initialized = false;
+                if (client.player != null) {
+                    client.player.sendMessage(Text.literal(
+                            enabled ? "AI FULL BODY: AÇIK" : "AI FULL BODY: KAPALI"), true);
+                }
+            }
+            tick(client);
+        });
     }
 
     private static void tick(MinecraftClient client) {
         PlayerEntity p = client.player;
-        if (p == null || client.world == null) {
+        if (!enabled || p == null || client.world == null) {
             combat = energy = focus = strain = turnVelocity = 0.0F;
             initialized = false;
             return;
@@ -73,6 +98,7 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
         return from + (to - from) * MathHelper.clamp(speed, 0.0F, 1.0F);
     }
 
+    public static boolean isEnabled() { return enabled; }
     public static float combat() { return combat; }
     public static float energy() { return energy; }
     public static float focus() { return focus; }
