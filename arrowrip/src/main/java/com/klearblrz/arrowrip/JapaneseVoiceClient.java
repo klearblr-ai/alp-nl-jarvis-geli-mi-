@@ -3,10 +3,13 @@ package com.klearblrz.arrowrip;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -15,42 +18,139 @@ import org.lwjgl.glfw.GLFW;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class JapaneseVoiceClient implements ClientModInitializer {
-    private static final String[] NAMES = {
-            "Nani?!", "Yamero!", "Ikuzo!", "Yare yare...", "Mada mada!", "Sugoi!", "Nanda?!", "Kamuda!"
+    private static final String[] LINES = {
+            "Nani?!",
+            "Yamero!",
+            "Ikuzo!",
+            "Yare yare...",
+            "Mada mada!",
+            "Sugoi!",
+            "Nanda?!",
+            "Kamuda!",
+            "Omae wa mou shindeiru!",
+            "Koko de owari da!",
+            "Ore wa mada tomaranai!",
+            "Kore ga ore no chikara da!",
+            "Kisama... koko made da!",
+            "Mada owatte nai zo!",
+            "Zetsubou shiro... kore de saigo da!",
+            "Ore no subete o misete yaru!"
     };
+
+    // Uzun replikler de aynı mevcut ses bankasını kullanır; altyazı havuzu daha geniştir.
     private static final String[] SOUNDS = {
             "voice_nani", "voice_yamero", "voice_ikuzo", "voice_yareyare",
             "voice_madamada", "voice_sugoi", "voice_nanda", "voice_kamuda"
     };
 
     private static KeyBinding voiceKey;
+    private static KeyBinding chatModeKey;
     private static int lastIndex = -1;
+    private static boolean chatMode = true;
+    private static String subtitle = "";
+    private static String subtitleTarget = "";
+    private static int subtitleTicks;
 
     @Override
     public void onInitializeClient() {
         voiceKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.arrowrip.random_japanese_voice", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, ArrowRipClient.CATEGORY));
+        chatModeKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.arrowrip.voice_chat_mode", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_Y, ArrowRipClient.CATEGORY));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (voiceKey.wasPressed()) playRandomVoice(client);
+            while (chatModeKey.wasPressed()) {
+                chatMode = !chatMode;
+                if (client.player != null) {
+                    client.player.sendMessage(Text.literal("Anime sohbet modu: " + (chatMode ? "AÇIK" : "KAPALI")), true);
+                }
+            }
+            if (subtitleTicks > 0) subtitleTicks--;
         });
+
+        HudRenderCallback.EVENT.register((ctx, tickCounter) -> renderSubtitle(ctx));
     }
 
     public static void playRandomVoice(MinecraftClient client) {
         if (client == null) return;
+
         int idx;
-        if (SOUNDS.length <= 1) idx = 0;
+        if (LINES.length <= 1) idx = 0;
         else {
-            do idx = ThreadLocalRandom.current().nextInt(SOUNDS.length);
+            do idx = ThreadLocalRandom.current().nextInt(LINES.length);
             while (idx == lastIndex);
         }
         lastIndex = idx;
-        if (client.player != null) client.player.sendMessage(Text.literal(NAMES[idx]), true);
-        try {
-            Identifier id = Identifier.of("arrowrip", SOUNDS[idx]);
-            client.getSoundManager().play(PositionedSoundInstance.master(SoundEvent.of(id), 1.0f, 1.0f));
-        } catch (Throwable t) {
-            if (client.player != null) client.player.sendMessage(Text.literal("Ses motoru yüklenemedi"), true);
+
+        subtitle = LINES[idx];
+        subtitleTicks = subtitle.length() > 24 ? 92 : 66;
+        subtitleTarget = "";
+        if (client.targetedEntity instanceof PlayerEntity target && client.player != null && target != client.player) {
+            subtitleTarget = target.getName().getString();
         }
+
+        if (chatMode && client.inGameHud != null) {
+            String prefix = subtitleTarget.isEmpty() ? "[ANIME] " : "[ANIME → " + subtitleTarget + "] ";
+            client.inGameHud.getChatHud().addMessage(Text.literal(prefix + subtitle));
+        }
+
+        try {
+            String sound = SOUNDS[idx % SOUNDS.length];
+            Identifier id = Identifier.of("arrowrip", sound);
+            client.getSoundManager().play(PositionedSoundInstance.master(SoundEvent.of(id), 1.0f, 1.0f));
+        } catch (Throwable ignored) {
+            // Altyazı/chat yine çalışsın; ses hatası oyunu etkilemesin.
+        }
+    }
+
+    private static void renderSubtitle(DrawContext ctx) {
+        if (subtitleTicks <= 0 || subtitle.isEmpty()) return;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.player == null) return;
+
+        int w = mc.getWindow().getScaledWidth();
+        int h = mc.getWindow().getScaledHeight();
+        int y = h - 58;
+
+        int alpha = Math.min(255, subtitleTicks * 12);
+        int textColor = (alpha << 24) | 0x00FFFFFF;
+        int accentColor = (alpha << 24) | 0x00FF3B3B;
+        int bgAlpha = Math.min(180, alpha * 2 / 3);
+
+        String[] parts = splitSubtitle(subtitle);
+        int maxWidth = 0;
+        for (String p : parts) maxWidth = Math.max(maxWidth, mc.textRenderer.getWidth(p));
+        if (!subtitleTarget.isEmpty()) maxWidth = Math.max(maxWidth, mc.textRenderer.getWidth("VS  " + subtitleTarget));
+
+        int x1 = Math.max(6, w / 2 - maxWidth / 2 - 10);
+        int x2 = Math.min(w - 6, w / 2 + maxWidth / 2 + 10);
+        int boxTop = y - (parts.length * 12) - (subtitleTarget.isEmpty() ? 6 : 18);
+        ctx.fill(x1, boxTop, x2, y + 8, (bgAlpha << 24) | 0x00000000);
+        ctx.fill(x1, boxTop, x1 + 2, y + 8, accentColor);
+
+        int drawY = boxTop + 5;
+        if (!subtitleTarget.isEmpty()) {
+            String target = "VS  " + subtitleTarget;
+            ctx.drawTextWithShadow(mc.textRenderer, Text.literal(target), (w - mc.textRenderer.getWidth(target)) / 2, drawY, accentColor);
+            drawY += 12;
+        }
+        for (String p : parts) {
+            ctx.drawTextWithShadow(mc.textRenderer, Text.literal(p), (w - mc.textRenderer.getWidth(p)) / 2, drawY, textColor);
+            drawY += 12;
+        }
+    }
+
+    private static String[] splitSubtitle(String s) {
+        if (s.length() <= 34) return new String[]{s};
+        int mid = s.length() / 2;
+        int left = s.lastIndexOf(' ', mid);
+        int right = s.indexOf(' ', mid + 1);
+        int cut;
+        if (left < 0) cut = right;
+        else if (right < 0) cut = left;
+        else cut = (mid - left <= right - mid) ? left : right;
+        if (cut <= 0 || cut >= s.length() - 1) return new String[]{s};
+        return new String[]{s.substring(0, cut).trim(), s.substring(cut + 1).trim()};
     }
 }
