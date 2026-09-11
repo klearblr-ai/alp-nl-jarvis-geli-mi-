@@ -1,0 +1,10 @@
+{
+  "voice_nani": {"sounds": ["arrowrip:voice_nani"]},
+  "voice_yamero": {"sounds": ["arrowrip:voice_yamero"]},
+  "voice_ikuzo": {"sounds": ["arrowrip:voice_ikuzo"]},
+  "voice_yareyare": {"sounds": ["arrowrip:voice_yareyare"]},
+  "voice_madamada": {"sounds": ["arrowrip:voice_madamada"]},
+  "voice_sugoi": {"sounds": ["arrowrip:voice_sugoi"]},
+  "voice_nanda": {"sounds": ["arrowrip:voice_nanda"]},
+  "voice_kamuda": {"sounds": ["arrowrip:voice_kamuda"]}
+}
