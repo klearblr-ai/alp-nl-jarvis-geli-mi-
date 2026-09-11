@@ -66,9 +66,7 @@ public final class BrutalFinisherClient implements ClientModInitializer {
             reevaluateCooldown = 20;
 
             int wanted = chooseAutoTrack(p);
-            if (wanted != activeTrack || !playing) {
-                playTrack(wanted);
-            }
+            if (wanted != activeTrack || !playing) playTrack(wanted);
         });
 
         HudRenderCallback.EVENT.register((drawContext, tickCounter) -> renderMusicHud(drawContext));
@@ -92,45 +90,51 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         int h = mc.getWindow().getScaledHeight();
         Track track = TRACKS[activeTrack];
 
+        // Sağ kenarda gerçek HUD paneli.
+        int panelW = 128;
+        int panelX = w - panelW - 8;
+        int panelY = Math.max(18, h / 2 - 74);
+        int panelH = 148;
+        ctx.fill(panelX - 4, panelY - 4, w - 4, panelY + panelH, 0x76090000);
+        ctx.fill(panelX - 2, panelY - 2, w - 6, panelY, 0xCC7A0007);
+        ctx.drawTextWithShadow(mc.textRenderer, Text.literal("🩸 " + track.name), panelX + 4, panelY + 5, 0xFFFF7777);
+
         if (visualizerEnabled) {
-            int bars = 24;
-            int barW = 3;
+            int bars = 16;
+            int barW = 4;
             int gap = 2;
-            int totalW = bars * barW + (bars - 1) * gap;
-            int startX = (w - totalW) / 2;
-            int baseY = h - 34;
+            int baseY = panelY + 88;
+            int startX = panelX + 4;
             double beatTicks = Math.max(1.0, 1200.0 / track.bpm);
             double beatPhase = (playbackTicks % beatTicks) / beatTicks;
-            double pulse = Math.pow(Math.max(0.0, Math.sin(beatPhase * Math.PI)), 1.6);
+            double pulse = Math.pow(Math.max(0.0, Math.sin(beatPhase * Math.PI)), 1.55);
 
             for (int i = 0; i < bars; i++) {
                 double wave = 0.35 + 0.65 * Math.abs(Math.sin(playbackTicks * 0.23 + i * 0.61));
-                double center = 1.0 - Math.abs((i - (bars - 1) / 2.0) / (bars / 2.0));
-                int height = 3 + (int)(24.0 * (0.35 * wave + 0.65 * pulse) * (0.55 + center * 0.45));
+                int height = 4 + (int)(45.0 * (0.38 * wave + 0.62 * pulse));
                 int x = startX + i * (barW + gap);
                 int top = baseY - height;
-                int color = (i % 5 == 0) ? 0xDD3A0000 : 0xEE8F0008;
+                int color = (i % 4 == 0) ? 0xEE3D0000 : 0xF09B0010;
                 ctx.fill(x, top, x + barW, baseY, color);
-                if ((i + playbackTicks) % 7 == 0) {
-                    int drip = 2 + (i % 4) * 2;
-                    ctx.fill(x + 1, baseY, x + 2, baseY + drip, 0xCC650006);
+                if ((i + playbackTicks) % 5 == 0) {
+                    int drip = 3 + (i % 5) * 2;
+                    ctx.fill(x + 1, baseY, x + 3, baseY + drip, 0xDD620007);
                 }
             }
-            ctx.drawCenteredTextWithShadow(mc.textRenderer, Text.literal(track.name), w / 2, h - 55, 0xFFD8D8D8);
         }
 
         if (lyricsEnabled) {
             String lyric = getLyricDisplay(track);
-            ctx.drawCenteredTextWithShadow(mc.textRenderer, Text.literal(lyric), w / 2, h - 72, 0xFFFF5555);
+            int textY = panelY + 104;
+            ctx.drawTextWithShadow(mc.textRenderer, Text.literal("SÖZ"), panelX + 4, textY, 0xFFFF4444);
+            ctx.drawTextWithShadow(mc.textRenderer, Text.literal(lyric), panelX + 4, textY + 13, 0xFFFFB0B0);
         }
     }
 
     private static String getLyricDisplay(Track track) {
-        // Gerçek söz dosyası yoksa metin uydurmayız. Karışık/çözülemeyen bölüm ekranda üç nokta olarak kalır.
-        // Böylece daha sonra zaman kodlu gerçek sözler eklendiğinde aynı HUD doğrudan onları gösterebilir.
         double beatTicks = Math.max(1.0, 1200.0 / track.bpm);
         int beat = (int)(playbackTicks / beatTicks);
-        return (beat % 4 == 3) ? "♪ …" : "♪ " + track.name + "  ·  söz çözümleme";
+        return (beat % 4 == 3) ? "♪ …" : "♪ çözülüyor…";
     }
 
     public static void toggleVisualizer() { visualizerEnabled = !visualizerEnabled; }
@@ -149,10 +153,7 @@ public final class BrutalFinisherClient implements ClientModInitializer {
     public static boolean isAutoMode() { return autoMode; }
     public static String getAutoModeName() { return autoMode ? "AÇIK" : "KAPALI"; }
 
-    public static void cycleBackgroundTrack() {
-        selectedTrack = (selectedTrack + 1) % TRACKS.length;
-    }
-
+    public static void cycleBackgroundTrack() { selectedTrack = (selectedTrack + 1) % TRACKS.length; }
     public static String getBackgroundTrackName() { return TRACKS[selectedTrack].name; }
     public static boolean isBackgroundPlaying() { return playing; }
     public static String getNowPlayingName() { return activeTrack >= 0 && activeTrack < TRACKS.length ? TRACKS[activeTrack].name : "Yok"; }
