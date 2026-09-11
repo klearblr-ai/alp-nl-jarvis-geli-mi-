@@ -13,27 +13,35 @@ public final class FinisherMenuScreen extends Screen {
     @Override
     protected void init() {
         int x = this.width / 2 - 110;
-        int y = this.height / 2 - 58;
+        int y = this.height / 2 - 82;
+
+        ButtonWidget auto = ButtonWidget.builder(
+                Text.literal("AUTO Müzik: " + BrutalFinisherClient.getAutoModeName()),
+                button -> {
+                    BrutalFinisherClient.toggleAutoMode();
+                    button.setMessage(Text.literal("AUTO Müzik: " + BrutalFinisherClient.getAutoModeName()));
+                }).dimensions(x, y, 220, 20).build();
+        addDrawableChild(auto);
 
         ButtonWidget song = ButtonWidget.builder(
-                Text.literal("Şarkı: " + BrutalFinisherClient.getBackgroundTrackName()),
+                Text.literal("Manuel Şarkı: " + BrutalFinisherClient.getBackgroundTrackName()),
                 button -> {
                     BrutalFinisherClient.cycleBackgroundTrack();
-                    button.setMessage(Text.literal("Şarkı: " + BrutalFinisherClient.getBackgroundTrackName()));
-                }).dimensions(x, y, 220, 20).build();
+                    button.setMessage(Text.literal("Manuel Şarkı: " + BrutalFinisherClient.getBackgroundTrackName()));
+                }).dimensions(x, y + 30, 220, 20).build();
         addDrawableChild(song);
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("▶ Çal"), button ->
+        addDrawableChild(ButtonWidget.builder(Text.literal("▶ Manuel Çal"), button ->
                 BrutalFinisherClient.playBackgroundSelected()
-        ).dimensions(x, y + 32, 106, 20).build());
+        ).dimensions(x, y + 60, 106, 20).build());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("■ Durdur"), button ->
                 BrutalFinisherClient.stopBackgroundMusic()
-        ).dimensions(x + 114, y + 32, 106, 20).build());
+        ).dimensions(x + 114, y + 60, 106, 20).build());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Kapat"), button ->
                 MinecraftClient.getInstance().setScreen(null)
-        ).dimensions(x, y + 66, 220, 20).build());
+        ).dimensions(x, y + 94, 220, 20).build());
     }
 
     @Override
