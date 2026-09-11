@@ -41,7 +41,7 @@ public final class BrutalFinisherClient implements ClientModInitializer {
 
     public enum FinisherMode { SWORD_RAIN, DECAPITATION, MIXED }
     private static FinisherMode selectedMode = FinisherMode.MIXED;
-    private static int selectedTrack = -1; // -1 = random
+    private static int selectedTrack = -1; // -1 = AUTO, finisher anına göre seçer
 
     private static UUID lastCombatTarget;
     private static Vec3d lastCombatPosition = Vec3d.ZERO;
@@ -92,7 +92,7 @@ public final class BrutalFinisherClient implements ClientModInitializer {
     }
 
     public static String getTrackName() {
-        return selectedTrack < 0 ? "Rastgele" : TRACKS[selectedTrack].name;
+        return selectedTrack < 0 ? "AUTO (Ana Göre)" : TRACKS[selectedTrack].name;
     }
 
     public static void previewCurrentTarget(MinecraftClient client) {
@@ -146,6 +146,25 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         combatMemoryTicks = 0;
     }
 
+    private static Track chooseAutoTrack() {
+        ThreadLocalRandom r = ThreadLocalRandom.current();
+        return switch (selectedMode) {
+            // Hızlı/agresif finisher: yüksek BPM parçalar.
+            case SWORD_RAIN -> TRACKS[r.nextInt(0, 3)];
+            // Kafa koparma: daha ağır, dramatik iki parça.
+            case DECAPITATION -> TRACKS[r.nextBoolean() ? 3 : 4];
+            // Karışık: bütün havuza bakar ama sert parçalara hafif ağırlık verir.
+            case MIXED -> {
+                int roll = r.nextInt(8);
+                if (roll < 2) yield TRACKS[0];
+                if (roll < 4) yield TRACKS[1];
+                if (roll < 5) yield TRACKS[2];
+                if (roll < 7) yield TRACKS[3];
+                yield TRACKS[4];
+            }
+        };
+    }
+
     private static void startFinisher(MinecraftClient client, PlayerEntity self, Vec3d origin) {
         clearVisuals();
         stopMusic();
@@ -160,7 +179,7 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         finisherActive = true;
         finisherTick = 0;
         beatIndex = 0;
-        activeTrack = selectedTrack < 0 ? TRACKS[ThreadLocalRandom.current().nextInt(TRACKS.length)] : TRACKS[selectedTrack];
+        activeTrack = selectedTrack < 0 ? chooseAutoTrack() : TRACKS[selectedTrack];
         beatIntervalTicks = Math.max(8, Math.round((float)(1200.0 / activeTrack.bpm)));
         nextBeatTick = 1;
 
