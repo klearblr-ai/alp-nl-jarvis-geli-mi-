@@ -40,6 +40,7 @@ public final class BrutalFinisherClient implements ClientModInitializer {
     };
 
     private static UUID lastCombatTarget;
+    private static Vec3d lastCombatPosition = Vec3d.ZERO;
     private static int combatMemoryTicks;
     private static boolean finisherActive;
     private static int finisherTick;
@@ -53,6 +54,8 @@ public final class BrutalFinisherClient implements ClientModInitializer {
     private static ArmorStandEntity headVisual;
     private static int headTick;
     private static volatile Player musicPlayer;
+
+    private static boolean savedForward, savedBack, savedLeft, savedRight, savedJump, savedSneak;
 
     @Override
     public void onInitializeClient() {
@@ -73,18 +76,27 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         if (combatMemoryTicks > 0) combatMemoryTicks--;
         if (client.options.attackKey.isPressed() && client.targetedEntity instanceof PlayerEntity target && target != self && self.distanceTo(target) < 5.0f) {
             lastCombatTarget = target.getUuid();
-            combatMemoryTicks = 50;
+            lastCombatPosition = new Vec3d(target.getX(), target.getY(), target.getZ());
+            combatMemoryTicks = 60;
         }
 
+        // Reliable automatic trigger: if the recently hit player dies OR disappears from the client right after the kill,
+        // run the finisher at the last position we saw them.
         if (!finisherActive && lastCombatTarget != null && combatMemoryTicks > 0) {
             PlayerEntity target = client.world.getPlayerByUuid(lastCombatTarget);
-            if (target != null && (!target.isAlive() || target.getHealth() <= 0.0f)) {
-                startFinisher(client, self, new Vec3d(target.getX(), target.getY(), target.getZ()));
-                lastCombatTarget = null;
-                combatMemoryTicks = 0;
+            if (target == null) {
+                startFinisher(client, self, lastCombatPosition);
+                clearCombatMemory();
+            } else {
+                lastCombatPosition = new Vec3d(target.getX(), target.getY(), target.getZ());
+                if (!target.isAlive() || target.getHealth() <= 0.0f) {
+                    startFinisher(client, self, lastCombatPosition);
+                    clearCombatMemory();
+                }
             }
         }
 
+        // H stays as a manual preview/test key.
         while (finisherKey.wasPressed()) {
             if (client.targetedEntity instanceof PlayerEntity target && target != self && self.distanceTo(target) < 8.0f) {
                 startFinisher(client, self, new Vec3d(target.getX(), target.getY(), target.getZ()));
@@ -96,9 +108,22 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         tickHeadVisual();
     }
 
+    private static void clearCombatMemory() {
+        lastCombatTarget = null;
+        combatMemoryTicks = 0;
+    }
+
     private static void startFinisher(MinecraftClient client, PlayerEntity self, Vec3d origin) {
         clearVisuals();
         stopMusic();
+
+        savedForward = client.options.forwardKey.isPressed();
+        savedBack = client.options.backKey.isPressed();
+        savedLeft = client.options.leftKey.isPressed();
+        savedRight = client.options.rightKey.isPressed();
+        savedJump = client.options.jumpKey.isPressed();
+        savedSneak = client.options.sneakKey.isPressed();
+
         finisherActive = true;
         finisherTick = 0;
         beatIndex = 0;
@@ -134,9 +159,19 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         }
 
         if (finisherTick > finisherEndTick) {
-            finisherActive = false;
-            stopMusic();
+            finishFinisher(client);
         }
+    }
+
+    private static void finishFinisher(MinecraftClient client) {
+        finisherActive = false;
+        stopMusic();
+        client.options.forwardKey.setPressed(savedForward);
+        client.options.backKey.setPressed(savedBack);
+        client.options.leftKey.setPressed(savedLeft);
+        client.options.rightKey.setPressed(savedRight);
+        client.options.jumpKey.setPressed(savedJump);
+        client.options.sneakKey.setPressed(savedSneak);
     }
 
     private static void beatStab(MinecraftClient client, PlayerEntity self, int index) {
