@@ -26,6 +26,16 @@ public final class BrutalFinisherClient implements ClientModInitializer {
             new Track("RAGE QUIT", "/assets/arrowrip/rage_quit.mp3", 117.45)
     };
 
+    // Values translated from the uploaded .viz preset:
+    // Spectrum, 173 samples, 45-300 Hz, mirrored, smooth=1,
+    // circular path, red/black line layers + white bars and beat RGB split.
+    private static final int VIZ_SAMPLES = 173;
+    private static final double VIZ_LOW_HZ = 45.0;
+    private static final double VIZ_HIGH_HZ = 300.0;
+    private static final double VIZ_RED_MULT = 2.0;
+    private static final double VIZ_BLACK_MULT = 1.9;
+    private static final double VIZ_BAR_MULT = 1.5;
+
     private static int selectedTrack = 0;
     private static volatile Player musicPlayer;
     private static volatile boolean playing;
@@ -52,7 +62,8 @@ public final class BrutalFinisherClient implements ClientModInitializer {
 
             if (playing) playbackTicks++;
 
-            if (client.options.attackKey.isPressed() || (client.targetedEntity instanceof PlayerEntity target && target != p && p.distanceTo(target) < 5.0f)) {
+            if (client.options.attackKey.isPressed() ||
+                    (client.targetedEntity instanceof PlayerEntity target && target != p && p.distanceTo(target) < 5.0f)) {
                 combatTicks = 100;
             } else if (combatTicks > 0) {
                 combatTicks--;
@@ -90,45 +101,115 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         int h = mc.getWindow().getScaledHeight();
         Track track = TRACKS[activeTrack];
 
-        // Sağ kenarda gerçek HUD paneli.
-        int panelW = 128;
+        int panelW = 136;
         int panelX = w - panelW - 8;
-        int panelY = Math.max(18, h / 2 - 74);
-        int panelH = 148;
-        ctx.fill(panelX - 4, panelY - 4, w - 4, panelY + panelH, 0x76090000);
-        ctx.fill(panelX - 2, panelY - 2, w - 6, panelY, 0xCC7A0007);
-        ctx.drawTextWithShadow(mc.textRenderer, Text.literal("🩸 " + track.name), panelX + 4, panelY + 5, 0xFFFF7777);
+        int panelY = Math.max(16, h / 2 - 82);
+        int panelH = 164;
 
-        if (visualizerEnabled) {
-            int bars = 16;
-            int barW = 4;
-            int gap = 2;
-            int baseY = panelY + 88;
-            int startX = panelX + 4;
-            double beatTicks = Math.max(1.0, 1200.0 / track.bpm);
-            double beatPhase = (playbackTicks % beatTicks) / beatTicks;
-            double pulse = Math.pow(Math.max(0.0, Math.sin(beatPhase * Math.PI)), 1.55);
+        ctx.fill(panelX - 4, panelY - 4, w - 4, panelY + panelH, 0x8A050000);
+        ctx.fill(panelX - 2, panelY - 2, w - 6, panelY, 0xDD8A0008);
+        ctx.drawTextWithShadow(mc.textRenderer, Text.literal("VIZ • " + track.name), panelX + 4, panelY + 5, 0xFFFF7777);
 
-            for (int i = 0; i < bars; i++) {
-                double wave = 0.35 + 0.65 * Math.abs(Math.sin(playbackTicks * 0.23 + i * 0.61));
-                int height = 4 + (int)(45.0 * (0.38 * wave + 0.62 * pulse));
-                int x = startX + i * (barW + gap);
-                int top = baseY - height;
-                int color = (i % 4 == 0) ? 0xEE3D0000 : 0xF09B0010;
-                ctx.fill(x, top, x + barW, baseY, color);
-                if ((i + playbackTicks) % 5 == 0) {
-                    int drip = 3 + (i % 5) * 2;
-                    ctx.fill(x + 1, baseY, x + 3, baseY + drip, 0xDD620007);
-                }
-            }
-        }
+        if (visualizerEnabled) renderUploadedVizPreset(ctx, panelX, panelY, track);
 
         if (lyricsEnabled) {
             String lyric = getLyricDisplay(track);
-            int textY = panelY + 104;
+            int textY = panelY + 132;
             ctx.drawTextWithShadow(mc.textRenderer, Text.literal("SÖZ"), panelX + 4, textY, 0xFFFF4444);
             ctx.drawTextWithShadow(mc.textRenderer, Text.literal(lyric), panelX + 4, textY + 13, 0xFFFFB0B0);
         }
+    }
+
+    private static void renderUploadedVizPreset(DrawContext ctx, int panelX, int panelY, Track track) {
+        int cx = panelX + 68;
+        int cy = panelY + 72;
+        double baseRadius = 28.0;
+        double beatTicks = Math.max(1.0, 1200.0 / track.bpm);
+        double beatPhase = (playbackTicks % beatTicks) / beatTicks;
+        double beat = Math.pow(Math.max(0.0, Math.sin(beatPhase * Math.PI)), 1.6);
+
+        // The preset uses 173 mirrored spectrum samples. We preserve that sampling count,
+        // but synthesize the per-band amplitudes from time/beat because JLayer playback
+        // does not expose PCM FFT frames directly.
+        for (int i = 0; i < VIZ_SAMPLES; i++) {
+            double mirrored = i <= VIZ_SAMPLES / 2
+                    ? i / (VIZ_SAMPLES / 2.0)
+                    : (VIZ_SAMPLES - 1 - i) / (VIZ_SAMPLES / 2.0);
+
+            double hz = VIZ_LOW_HZ + (VIZ_HIGH_HZ - VIZ_LOW_HZ) * Math.max(0.0, mirrored);
+            double band = 0.50
+                    + 0.23 * Math.sin(playbackTicks * 0.19 + i * 0.31 + hz * 0.014)
+                    + 0.17 * Math.sin(playbackTicks * 0.11 + i * 0.73)
+                    + 0.30 * beat;
+            band = clamp01(band);
+
+            double angle = (Math.PI * 2.0 * i / VIZ_SAMPLES) - Math.PI / 2.0;
+
+            // Layer 1 from preset: red circular line, multiplier 2.0.
+            double redR = baseRadius + band * 8.0 * VIZ_RED_MULT;
+            int rx = (int)Math.round(cx + Math.cos(angle) * redR);
+            int ry = (int)Math.round(cy + Math.sin(angle) * redR);
+            putPixel(ctx, rx, ry, 0xF0FF1018);
+
+            // Beat RGB split approximation from the preset.
+            if (beat > 0.42 && (i & 1) == 0) {
+                putPixel(ctx, rx + 1, ry, 0x99FF0000);
+                putPixel(ctx, rx - 1, ry + 1, 0x9960AAFF);
+            }
+
+            // Layer 2 from preset: dark/black line, multiplier 1.9.
+            double blackR = baseRadius + band * 7.2 * VIZ_BLACK_MULT;
+            int bx = (int)Math.round(cx + Math.cos(angle) * blackR);
+            int by = (int)Math.round(cy + Math.sin(angle) * blackR);
+            putPixel(ctx, bx, by, 0xE8000000);
+
+            // Layer 3 from preset: white circular bars, multiplier 1.5.
+            if (i % 3 == 0) {
+                double inner = baseRadius - 1.0;
+                double outer = baseRadius + 4.0 + band * 8.0 * VIZ_BAR_MULT;
+                drawRadialLine(ctx, cx, cy, angle, inner, outer, 0xEEFFFFFF);
+            }
+
+            // Preset particle/vortex feel: small beat-driven sparks around the circle.
+            if (beat > 0.55 && i % 19 == (playbackTicks % 19)) {
+                double sparkR = baseRadius + 18.0 + band * 7.0;
+                int sx = (int)Math.round(cx + Math.cos(angle + playbackTicks * 0.015) * sparkR);
+                int sy = (int)Math.round(cy + Math.sin(angle + playbackTicks * 0.015) * sparkR);
+                ctx.fill(sx - 1, sy - 1, sx + 2, sy + 2, 0xCCFF3636);
+            }
+        }
+
+        // Thin inner circle and a subtle beat pulse, matching the preset's central ring feel.
+        drawCircle(ctx, cx, cy, (int)Math.round(baseRadius - 2 + beat * 2), 0xD0FFFFFF);
+        if (beat > 0.62) drawCircle(ctx, cx, cy, (int)Math.round(baseRadius + 3 + beat * 4), 0x70FF2020);
+    }
+
+    private static void drawRadialLine(DrawContext ctx, int cx, int cy, double angle, double r1, double r2, int color) {
+        int steps = Math.max(1, (int)Math.ceil(r2 - r1));
+        for (int s = 0; s <= steps; s++) {
+            double r = r1 + (r2 - r1) * (s / (double)steps);
+            int x = (int)Math.round(cx + Math.cos(angle) * r);
+            int y = (int)Math.round(cy + Math.sin(angle) * r);
+            putPixel(ctx, x, y, color);
+        }
+    }
+
+    private static void drawCircle(DrawContext ctx, int cx, int cy, int radius, int color) {
+        int points = 144;
+        for (int i = 0; i < points; i++) {
+            double a = Math.PI * 2.0 * i / points;
+            int x = (int)Math.round(cx + Math.cos(a) * radius);
+            int y = (int)Math.round(cy + Math.sin(a) * radius);
+            putPixel(ctx, x, y, color);
+        }
+    }
+
+    private static void putPixel(DrawContext ctx, int x, int y, int color) {
+        ctx.fill(x, y, x + 1, y + 1, color);
+    }
+
+    private static double clamp01(double v) {
+        return Math.max(0.0, Math.min(1.0, v));
     }
 
     private static String getLyricDisplay(Track track) {
