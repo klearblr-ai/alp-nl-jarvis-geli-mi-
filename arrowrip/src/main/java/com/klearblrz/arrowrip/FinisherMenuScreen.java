@@ -7,38 +7,33 @@ import net.minecraft.text.Text;
 
 public final class FinisherMenuScreen extends Screen {
     public FinisherMenuScreen() {
-        super(Text.literal("ArrowRip Finisher"));
+        super(Text.literal("ArrowRip Müzik"));
     }
 
     @Override
     protected void init() {
         int x = this.width / 2 - 100;
-        int y = this.height / 2 - 62;
-
-        ButtonWidget mode = ButtonWidget.builder(
-                Text.literal("Finisher: " + BrutalFinisherClient.getModeName()),
-                button -> {
-                    BrutalFinisherClient.cycleMode();
-                    button.setMessage(Text.literal("Finisher: " + BrutalFinisherClient.getModeName()));
-                }).dimensions(x, y, 200, 20).build();
-        addDrawableChild(mode);
+        int y = this.height / 2 - 48;
 
         ButtonWidget song = ButtonWidget.builder(
                 Text.literal("Şarkı: " + BrutalFinisherClient.getTrackName()),
                 button -> {
                     BrutalFinisherClient.cycleTrack();
                     button.setMessage(Text.literal("Şarkı: " + BrutalFinisherClient.getTrackName()));
-                }).dimensions(x, y + 26, 200, 20).build();
+                }).dimensions(x, y, 200, 20).build();
         addDrawableChild(song);
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Finisher Test"), button -> {
-            BrutalFinisherClient.previewCurrentTarget(MinecraftClient.getInstance());
-            MinecraftClient.getInstance().setScreen(null);
-        }).dimensions(x, y + 52, 200, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Çal"), button ->
+                BrutalFinisherClient.playSelected()
+        ).dimensions(x, y + 30, 96, 20).build());
+
+        addDrawableChild(ButtonWidget.builder(Text.literal("Durdur"), button ->
+                BrutalFinisherClient.stopMusic()
+        ).dimensions(x + 104, y + 30, 96, 20).build());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Kapat"), button ->
                 MinecraftClient.getInstance().setScreen(null)
-        ).dimensions(x, y + 84, 200, 20).build());
+        ).dimensions(x, y + 64, 200, 20).build());
     }
 
     @Override
