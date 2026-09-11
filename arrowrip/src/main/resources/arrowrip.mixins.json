@@ -9,7 +9,8 @@
     "ArmJointPolishMixin",
     "FingerGeometryMixin",
     "FingerAnimationMixin",
-    "FistNeckSceneMixin"
+    "FistNeckSceneMixin",
+    "AutoPvPAnimationMixin"
   ],
   "injectors": {
     "defaultRequire": 1
