@@ -7,9 +7,11 @@ import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.sound.EntityTrackingSoundInstance;
 import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -37,7 +39,6 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
             "Ore no subete o misete yaru!"
     };
 
-    // Uzun replikler de aynı mevcut ses bankasını kullanır; altyazı havuzu daha geniştir.
     private static final String[] SOUNDS = {
             "voice_nani", "voice_yamero", "voice_ikuzo", "voice_yareyare",
             "voice_madamada", "voice_sugoi", "voice_nanda", "voice_kamuda"
@@ -46,7 +47,8 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
     private static KeyBinding voiceKey;
     private static KeyBinding chatModeKey;
     private static int lastIndex = -1;
-    private static boolean chatMode = true;
+    // Varsayılan kapalı: sunucu chatine hiçbir şey göndermez; bu sadece local HUD chatidir.
+    private static boolean chatMode = false;
     private static String subtitle = "";
     private static String subtitleTarget = "";
     private static int subtitleTicks;
@@ -63,7 +65,7 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
             while (chatModeKey.wasPressed()) {
                 chatMode = !chatMode;
                 if (client.player != null) {
-                    client.player.sendMessage(Text.literal("Anime sohbet modu: " + (chatMode ? "AÇIK" : "KAPALI")), true);
+                    client.player.sendMessage(Text.literal("Anime local chat: " + (chatMode ? "AÇIK" : "KAPALI")), true);
                 }
             }
             if (subtitleTicks > 0) subtitleTicks--;
@@ -84,23 +86,32 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
         lastIndex = idx;
 
         subtitle = LINES[idx];
-        subtitleTicks = subtitle.length() > 24 ? 92 : 66;
+        subtitleTicks = subtitle.length() > 24 ? 104 : 78;
         subtitleTarget = "";
+        PlayerEntity speaker = null;
         if (client.targetedEntity instanceof PlayerEntity target && client.player != null && target != client.player) {
+            speaker = target;
             subtitleTarget = target.getName().getString();
         }
 
         if (chatMode && client.inGameHud != null) {
-            String prefix = subtitleTarget.isEmpty() ? "[ANIME] " : "[ANIME → " + subtitleTarget + "] ";
+            String prefix = subtitleTarget.isEmpty() ? "[ANIME] " : "[" + subtitleTarget + "] ";
             client.inGameHud.getChatHud().addMessage(Text.literal(prefix + subtitle));
         }
 
         try {
             String sound = SOUNDS[idx % SOUNDS.length];
             Identifier id = Identifier.of("arrowrip", sound);
-            client.getSoundManager().play(PositionedSoundInstance.master(SoundEvent.of(id), 1.0f, 1.0f));
+            SoundEvent event = SoundEvent.of(id);
+            if (speaker != null) {
+                // Sadece bu client duyar; ses baktığın oyuncunun konumundan gelir.
+                client.getSoundManager().play(new EntityTrackingSoundInstance(
+                        event, SoundCategory.MASTER, 1.0f, 0.94f, speaker, System.nanoTime()));
+            } else {
+                client.getSoundManager().play(PositionedSoundInstance.master(event, 0.94f, 1.0f));
+            }
         } catch (Throwable ignored) {
-            // Altyazı/chat yine çalışsın; ses hatası oyunu etkilemesin.
+            // Altyazı yine çalışsın; ses hatası oyunu etkilemesin.
         }
     }
 
@@ -113,7 +124,7 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
         int h = mc.getWindow().getScaledHeight();
         int y = h - 58;
 
-        int alpha = Math.min(255, subtitleTicks * 12);
+        int alpha = Math.min(255, subtitleTicks * 10);
         int textColor = (alpha << 24) | 0x00FFFFFF;
         int accentColor = (alpha << 24) | 0x00FF3B3B;
         int bgAlpha = Math.min(180, alpha * 2 / 3);
@@ -121,17 +132,17 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
         String[] parts = splitSubtitle(subtitle);
         int maxWidth = 0;
         for (String p : parts) maxWidth = Math.max(maxWidth, mc.textRenderer.getWidth(p));
-        if (!subtitleTarget.isEmpty()) maxWidth = Math.max(maxWidth, mc.textRenderer.getWidth("VS  " + subtitleTarget));
+        if (!subtitleTarget.isEmpty()) maxWidth = Math.max(maxWidth, mc.textRenderer.getWidth(subtitleTarget + " konuşuyor"));
 
         int x1 = Math.max(6, w / 2 - maxWidth / 2 - 10);
         int x2 = Math.min(w - 6, w / 2 + maxWidth / 2 + 10);
         int boxTop = y - (parts.length * 12) - (subtitleTarget.isEmpty() ? 6 : 18);
-        ctx.fill(x1, boxTop, x2, y + 8, (bgAlpha << 24) | 0x00000000);
+        ctx.fill(x1, boxTop, x2, y + 8, (bgAlpha << 24));
         ctx.fill(x1, boxTop, x1 + 2, y + 8, accentColor);
 
         int drawY = boxTop + 5;
         if (!subtitleTarget.isEmpty()) {
-            String target = "VS  " + subtitleTarget;
+            String target = subtitleTarget + " konuşuyor";
             ctx.drawTextWithShadow(mc.textRenderer, Text.literal(target), (w - mc.textRenderer.getWidth(target)) / 2, drawY, accentColor);
             drawY += 12;
         }
