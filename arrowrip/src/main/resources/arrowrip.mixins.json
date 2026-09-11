@@ -3,7 +3,8 @@
   "package": "com.klearblrz.arrowrip.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "AnimePlayerModelMixin"
+    "AnimePlayerModelMixin",
+    "AnimeKickMixin"
   ],
   "injectors": {
     "defaultRequire": 1
