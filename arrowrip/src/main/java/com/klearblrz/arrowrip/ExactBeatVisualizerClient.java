@@ -18,6 +18,7 @@ public final class ExactBeatVisualizerClient implements ClientModInitializer {
     };
     private static final double[] AVG_STEP = {9.26,9.76,9.80,10.10,10.09};
     private static Field activeTrackField, playbackTicksField, playingField;
+    private static int frameSkip;
 
     @Override
     public void onInitializeClient() {
@@ -35,6 +36,7 @@ public final class ExactBeatVisualizerClient implements ClientModInitializer {
 
     private static void render(DrawContext ctx) {
         try {
+            if ((frameSkip++ & 1) != 0) return;
             if (activeTrackField == null || playbackTicksField == null || playingField == null) return;
             if (!(boolean) playingField.get(null)) return;
             int track = (int) activeTrackField.get(null);
@@ -49,21 +51,21 @@ public final class ExactBeatVisualizerClient implements ClientModInitializer {
             int cy = Math.max(16, h / 2 - 82) + 72;
             double pulse = envelope(track, tick);
             double bass = Math.pow(pulse, 0.72);
-            int bars = 72;
+            int bars = 36;
             double base = 28.0;
 
             for (int i = 0; i < bars; i++) {
                 double a = Math.PI * 2.0 * i / bars - Math.PI / 2.0;
-                double shape = 0.78 + 0.22 * Math.sin(i * 0.71 + tick * 0.08);
-                double amp = (3.0 + bass * 22.0) * shape;
+                double shape = 0.80 + 0.20 * Math.sin(i * 0.71 + tick * 0.08);
+                double amp = (3.0 + bass * 20.0) * shape;
                 double inner = base - 1.0;
                 double outer = base + amp;
                 int color = pulse > 0.62 ? 0xFFFF2638 : 0xFFEAEAEA;
-                radial(ctx, cx, cy, a, inner, outer, color);
+                radialFast(ctx, cx, cy, a, inner, outer, color);
             }
 
-            circle(ctx, cx, cy, (int)Math.round(base + bass * 7.0), pulse > 0.45 ? 0xCCFF1018 : 0xAAFFFFFF);
-            if (pulse > 0.72) circle(ctx, cx, cy, (int)Math.round(base + 10 + bass * 8.0), 0x88FF0000);
+            circleFast(ctx, cx, cy, (int)Math.round(base + bass * 7.0), pulse > 0.45 ? 0xCCFF1018 : 0xAAFFFFFF);
+            if (pulse > 0.72) circleFast(ctx, cx, cy, (int)Math.round(base + 10 + bass * 8.0), 0x88FF0000);
         } catch (Throwable ignored) {}
     }
 
@@ -84,12 +86,12 @@ public final class ExactBeatVisualizerClient implements ClientModInitializer {
             beatTick = (int)Math.round(beats[beats.length - 1] + n * step);
         }
         int dt = tick - beatTick;
-        if (dt < 0 || dt > 7) return 0.0;
+        if (dt < 0 || dt > 6) return 0.0;
         return Math.exp(-dt * 0.92);
     }
 
-    private static void radial(DrawContext ctx, int cx, int cy, double a, double r1, double r2, int color) {
-        int steps = Math.max(1, (int)Math.ceil(r2-r1));
+    private static void radialFast(DrawContext ctx, int cx, int cy, double a, double r1, double r2, int color) {
+        int steps = Math.max(1, (int)Math.ceil((r2-r1) / 2.0));
         for (int s=0;s<=steps;s++) {
             double r = r1 + (r2-r1) * (s/(double)steps);
             int x = (int)Math.round(cx + Math.cos(a)*r);
@@ -98,9 +100,9 @@ public final class ExactBeatVisualizerClient implements ClientModInitializer {
         }
     }
 
-    private static void circle(DrawContext ctx, int cx, int cy, int r, int color) {
-        for (int i=0;i<160;i++) {
-            double a = Math.PI*2*i/160.0;
+    private static void circleFast(DrawContext ctx, int cx, int cy, int r, int color) {
+        for (int i=0;i<80;i++) {
+            double a = Math.PI*2*i/80.0;
             int x=(int)Math.round(cx+Math.cos(a)*r);
             int y=(int)Math.round(cy+Math.sin(a)*r);
             ctx.fill(x,y,x+1,y+1,color);
