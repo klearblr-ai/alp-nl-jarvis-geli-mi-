@@ -3,17 +3,21 @@ package com.klearblrz.arrowrip;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.LightBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.render.RenderLayers;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.util.InputUtil;
-import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.Team;
-import net.minecraft.util.Formatting;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
 
 import javax.sound.sampled.AudioInputStream;
@@ -23,17 +27,15 @@ import java.io.BufferedInputStream;
 import java.io.InputStream;
 
 public final class BlueAuraClient implements ClientModInitializer {
-    private static final String AURA_TEAM = "arrowrip_blue_aura";
     private static final String AURA_SOUND = "/assets/arrowrip/anime_aura_leaking_power.wav";
 
     private static KeyBinding auraKey;
     private static boolean auraActive;
     private static Clip auraClip;
+    private static int auraTicks;
 
     private static BlockPos lightPos;
     private static BlockState replacedState;
-    private static String previousTeamName;
-    private static boolean previousGlowing;
 
     @Override
     public void onInitializeClient() {
@@ -58,18 +60,17 @@ public final class BlueAuraClient implements ClientModInitializer {
             }
 
             if (auraActive) {
-                keepBlueGlow(client);
+                auraTicks++;
                 keepBodyLight(client);
             }
         });
+
+        WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> renderAura(context.matrices(), context.consumers().getBuffer(RenderLayers.linesTranslucent())));
     }
 
     private static void enableAura(MinecraftClient client) {
         if (client.player == null || client.world == null) return;
-        previousGlowing = client.player.isGlowing();
-        Team old = client.player.getScoreboardTeam();
-        previousTeamName = old == null ? null : old.getName();
-        keepBlueGlow(client);
+        auraTicks = 0;
         keepBodyLight(client);
         playAuraSound();
     }
@@ -77,31 +78,58 @@ public final class BlueAuraClient implements ClientModInitializer {
     private static void disableAura(MinecraftClient client) {
         stopAuraSound();
         restoreLight(client);
-
-        if (client.player != null && client.world != null) {
-            client.player.setGlowing(previousGlowing);
-            Scoreboard board = client.world.getScoreboard();
-            board.clearTeam(client.player.getNameForScoreboard());
-            if (previousTeamName != null && !AURA_TEAM.equals(previousTeamName)) {
-                Team old = board.getTeam(previousTeamName);
-                if (old != null) board.addScoreHolderToTeam(client.player.getNameForScoreboard(), old);
-            }
-        }
-        previousTeamName = null;
+        auraTicks = 0;
     }
 
-    private static void keepBlueGlow(MinecraftClient client) {
-        if (client.player == null || client.world == null) return;
-        client.player.setGlowing(true);
+    private static void renderAura(MatrixStack matrices, VertexConsumer lines) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!auraActive || client.player == null || client.world == null) return;
 
-        Scoreboard board = client.world.getScoreboard();
-        Team auraTeam = board.getTeam(AURA_TEAM);
-        if (auraTeam == null) auraTeam = board.addTeam(AURA_TEAM);
-        auraTeam.setColor(Formatting.AQUA);
+        Vec3d camera = client.gameRenderer.getCamera().getPos();
+        double px = client.player.getX() - camera.x;
+        double py = client.player.getY() - camera.y;
+        double pz = client.player.getZ() - camera.z;
 
-        if (client.player.getScoreboardTeam() != auraTeam) {
-            board.addScoreHolderToTeam(client.player.getNameForScoreboard(), auraTeam);
+        // Small breathing/power pulse. This is geometry, not particles.
+        double pulse = 0.015 + 0.020 * (0.5 + 0.5 * Math.sin(auraTicks * 0.32));
+
+        // Several translucent full-body shells create a real bright aura around the model.
+        for (int layer = 0; layer < 7; layer++) {
+            double e = pulse + layer * 0.018;
+            float fade = 0.92f - layer * 0.105f;
+            float r = 0.10f + layer * 0.015f;
+            float g = 0.62f + layer * 0.035f;
+            float b = 1.00f;
+
+            drawBodyPart(matrices, lines, new Box(px - 0.31 - e, py + 1.43 - e, pz - 0.31 - e,
+                    px + 0.31 + e, py + 2.05 + e, pz + 0.31 + e), r, g, b, fade); // head
+            drawBodyPart(matrices, lines, new Box(px - 0.37 - e, py + 0.68 - e, pz - 0.22 - e,
+                    px + 0.37 + e, py + 1.50 + e, pz + 0.22 + e), r, g, b, fade); // torso
+            drawBodyPart(matrices, lines, new Box(px - 0.61 - e, py + 0.68 - e, pz - 0.18 - e,
+                    px - 0.37 + e, py + 1.48 + e, pz + 0.18 + e), r, g, b, fade * 0.86f); // left arm
+            drawBodyPart(matrices, lines, new Box(px + 0.37 - e, py + 0.68 - e, pz - 0.18 - e,
+                    px + 0.61 + e, py + 1.48 + e, pz + 0.18 + e), r, g, b, fade * 0.86f); // right arm
+            drawBodyPart(matrices, lines, new Box(px - 0.31 - e, py - 0.03 - e, pz - 0.18 - e,
+                    px - 0.02 + e, py + 0.72 + e, pz + 0.18 + e), r, g, b, fade * 0.82f); // left leg
+            drawBodyPart(matrices, lines, new Box(px + 0.02 - e, py - 0.03 - e, pz - 0.18 - e,
+                    px + 0.31 + e, py + 0.72 + e, pz + 0.18 + e), r, g, b, fade * 0.82f); // right leg
         }
+
+        // Two wider halos make the blue light visibly leak away from the body.
+        double halo = 0.10 + 0.04 * Math.sin(auraTicks * 0.23);
+        WorldRenderer.drawBox(matrices, lines,
+                new Box(px - 0.72 - halo, py - 0.10, pz - 0.42 - halo,
+                        px + 0.72 + halo, py + 2.12, pz + 0.42 + halo),
+                0.05f, 0.46f, 1.0f, 0.32f);
+        WorldRenderer.drawBox(matrices, lines,
+                new Box(px - 0.82 - halo, py - 0.18, pz - 0.50 - halo,
+                        px + 0.82 + halo, py + 2.20, pz + 0.50 + halo),
+                0.02f, 0.30f, 1.0f, 0.16f);
+    }
+
+    private static void drawBodyPart(MatrixStack matrices, VertexConsumer lines, Box box,
+                                     float r, float g, float b, float alpha) {
+        WorldRenderer.drawBox(matrices, lines, box, r, g, b, alpha);
     }
 
     private static void keepBodyLight(MinecraftClient client) {
@@ -117,7 +145,7 @@ public final class BlueAuraClient implements ClientModInitializer {
         lightPos = wanted.toImmutable();
         replacedState = current;
         BlockState light = Blocks.LIGHT.getDefaultState().with(LightBlock.LEVEL_15, 15);
-        client.world.setBlockState(lightPos, light, Block.NOTIFY_ALL);
+        client.world.setBlockState(lightPos, light, Block.NOTIFY_LISTENERS);
     }
 
     private static void restoreLight(MinecraftClient client) {
@@ -128,7 +156,7 @@ public final class BlueAuraClient implements ClientModInitializer {
         }
 
         if (client.world.getBlockState(lightPos).isOf(Blocks.LIGHT)) {
-            client.world.setBlockState(lightPos, replacedState, Block.NOTIFY_ALL);
+            client.world.setBlockState(lightPos, replacedState, Block.NOTIFY_LISTENERS);
         }
         lightPos = null;
         replacedState = null;
