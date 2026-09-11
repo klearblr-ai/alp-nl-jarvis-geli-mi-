@@ -33,7 +33,7 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
         toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.arrowrip.ai_fullbody_toggle",
                 InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_K,
+                GLFW.GLFW_KEY_M,
                 ArrowRipClient.CATEGORY));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
