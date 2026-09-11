@@ -14,6 +14,7 @@
     "BlenderRigGeometryMixin",
     "BlenderRigAnimationMixin",
     "AutoPlayFullBodyMixin",
+    "FullBodyActionStateMixin",
     "AIRigToggleVisibilityMixin",
     "CinematicCameraAIMixin",
     "AllPlayersCombatAnimationMixin"
