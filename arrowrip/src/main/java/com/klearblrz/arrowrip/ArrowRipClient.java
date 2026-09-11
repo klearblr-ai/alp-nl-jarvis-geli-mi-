@@ -37,6 +37,7 @@ public final class ArrowRipClient implements ClientModInitializer {
     private static int suppressedArrowServerCount = -1;
     private static int throwAnimationTicks;
     private static Vec3d savedThrowLook = new Vec3d(0,0,1);
+    private static ItemEntity bodyArrowEntity;
 
     private static UUID stabbedTargetUuid;
     private static ItemEntity stabbedWeaponEntity;
@@ -72,6 +73,7 @@ public final class ArrowRipClient implements ClientModInitializer {
         } else {
             visualArrowCount = tracked;
         }
+        syncBodyArrowVisual(client,p);
 
         if (animationTicks > 0) { animationTicks--; animatePull(client,p,animationTicks); }
         if (throwAnimationTicks > 0) {
@@ -102,6 +104,7 @@ public final class ArrowRipClient implements ClientModInitializer {
                 visualArrowCount = Math.max(0, visualArrowCount - 1);
                 suppressedArrowServerCount = before;
                 p.setStuckArrowCount(visualArrowCount);
+                syncBodyArrowVisual(client,p);
                 animationTicks=16;
                 bleedTicks=Math.max(bleedTicks,100);
                 holdTicks=0;
@@ -110,6 +113,31 @@ public final class ArrowRipClient implements ClientModInitializer {
                 ripArrow(client,p);
             }
         } else holdTicks=0;
+    }
+
+    private static void syncBodyArrowVisual(MinecraftClient client, PlayerEntity p) {
+        if (visualArrowCount <= 0) {
+            if (bodyArrowEntity != null) bodyArrowEntity.discard();
+            bodyArrowEntity = null;
+            return;
+        }
+        double yaw = Math.toRadians(p.getYaw());
+        double sideX = Math.cos(yaw) * 0.24;
+        double sideZ = Math.sin(yaw) * 0.24;
+        double x = p.getX() + sideX;
+        double y = p.getY() + p.getHeight() * 0.62;
+        double z = p.getZ() + sideZ;
+        if (bodyArrowEntity == null || !bodyArrowEntity.isAlive()) {
+            bodyArrowEntity = new ItemEntity(client.world,x,y,z,new ItemStack(Items.ARROW));
+            bodyArrowEntity.setPickupDelayInfinite();
+            bodyArrowEntity.setNoGravity(true);
+            bodyArrowEntity.setVelocity(Vec3d.ZERO);
+            client.world.addEntity(bodyArrowEntity);
+        }
+        bodyArrowEntity.setPosition(x,y,z);
+        bodyArrowEntity.setVelocity(Vec3d.ZERO);
+        bodyArrowEntity.setYaw(p.getYaw()+90f);
+        bodyArrowEntity.setPitch(0f);
     }
 
     private static void tryStab(MinecraftClient client, PlayerEntity attacker) {
@@ -240,7 +268,7 @@ public final class ArrowRipClient implements ClientModInitializer {
     }
 
     private static void clearStabVisual(){if(stabbedWeaponEntity!=null)stabbedWeaponEntity.discard();stabbedWeaponEntity=null;stabbedTargetUuid=null;stabbedWeaponTicks=0;stabbedBloodCooldown=0;}
-    private static void reset(){holdTicks=animationTicks=visualArrowCount=bleedTicks=dripCooldown=groundBloodTicks=throwAnimationTicks=0;suppressedArrowServerCount=-1;biteTicks=biteBloodCooldown=0;biteTargetUuid=null;bitePoseActive=false;clearStabVisual();}
+    private static void reset(){holdTicks=animationTicks=visualArrowCount=bleedTicks=dripCooldown=groundBloodTicks=throwAnimationTicks=0;suppressedArrowServerCount=-1;biteTicks=biteBloodCooldown=0;biteTargetUuid=null;bitePoseActive=false;if(bodyArrowEntity!=null)bodyArrowEntity.discard();bodyArrowEntity=null;clearStabVisual();}
 
     private static void spawnTargetBlood(MinecraftClient c,PlayerEntity t,int n){double y=t.getY()+t.getHeight()*0.52;for(int i=0;i<n;i++)c.world.addParticleClient(i%3==0?DARK_BLOOD:BLOOD,t.getX()+(c.world.random.nextDouble()-.5)*.32,y+(c.world.random.nextDouble()-.5)*.20,t.getZ()+(c.world.random.nextDouble()-.5)*.32,(c.world.random.nextDouble()-.5)*.035,-.035-c.world.random.nextDouble()*.03,(c.world.random.nextDouble()-.5)*.035);}
 
