@@ -28,7 +28,7 @@ import java.util.UUID;
 
 public final class ArrowRipClient implements ClientModInitializer {
     private static KeyBinding pullKey, stabKey, biteKey;
-    private static final KeyBinding.Category CATEGORY = KeyBinding.Category.create(Identifier.of("arrowrip", "main"));
+    public static final KeyBinding.Category CATEGORY = KeyBinding.Category.create(Identifier.of("arrowrip", "main"));
     private static final DustParticleEffect BLOOD = new DustParticleEffect(0x7A0202, 1.15f);
     private static final DustParticleEffect DARK_BLOOD = new DustParticleEffect(0x380000, 1.35f);
 
