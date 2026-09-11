@@ -41,13 +41,14 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
 
     private static final String[] SOUNDS = {
             "voice_nani", "voice_yamero", "voice_ikuzo", "voice_yareyare",
-            "voice_madamada", "voice_sugoi", "voice_nanda", "voice_kamuda"
+            "voice_madamada", "voice_sugoi", "voice_nanda", "voice_kamuda",
+            "voice_omae_shindeiru", "voice_koko_owari", "voice_ore_tomaranai", "voice_kore_chikara",
+            "voice_kisama_koko", "voice_mada_owatte", "voice_zetsubou_saigo", "voice_subete_misete"
     };
 
     private static KeyBinding voiceKey;
     private static KeyBinding chatModeKey;
     private static int lastIndex = -1;
-    // Varsayılan kapalı: sunucu chatine hiçbir şey göndermez; bu sadece local HUD chatidir.
     private static boolean chatMode = false;
     private static String subtitle = "";
     private static String subtitleTarget = "";
@@ -86,7 +87,7 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
         lastIndex = idx;
 
         subtitle = LINES[idx];
-        subtitleTicks = subtitle.length() > 24 ? 104 : 78;
+        subtitleTicks = subtitle.length() > 24 ? 122 : 84;
         subtitleTarget = "";
         PlayerEntity speaker = null;
         if (client.targetedEntity instanceof PlayerEntity target && client.player != null && target != client.player) {
@@ -100,18 +101,15 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
         }
 
         try {
-            String sound = SOUNDS[idx % SOUNDS.length];
-            Identifier id = Identifier.of("arrowrip", sound);
+            Identifier id = Identifier.of("arrowrip", SOUNDS[idx]);
             SoundEvent event = SoundEvent.of(id);
             if (speaker != null) {
-                // Sadece bu client duyar; ses baktığın oyuncunun konumundan gelir.
                 client.getSoundManager().play(new EntityTrackingSoundInstance(
-                        event, SoundCategory.MASTER, 1.0f, 0.94f, speaker, System.nanoTime()));
+                        event, SoundCategory.MASTER, 1.0f, 0.90f, speaker, System.nanoTime()));
             } else {
-                client.getSoundManager().play(PositionedSoundInstance.master(event, 0.94f, 1.0f));
+                client.getSoundManager().play(PositionedSoundInstance.master(event, 0.90f, 1.0f));
             }
         } catch (Throwable ignored) {
-            // Altyazı yine çalışsın; ses hatası oyunu etkilemesin.
         }
     }
 
