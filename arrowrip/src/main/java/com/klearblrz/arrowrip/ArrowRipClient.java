@@ -3,25 +3,32 @@ package com.klearblrz.arrowrip;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.item.SwordItem;
 import net.minecraft.particle.DustParticleEffect;
 import net.minecraft.sound.SoundEvents;
+import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
+
+import java.util.UUID;
 
 public final class ArrowRipClient implements ClientModInitializer {
     private static KeyBinding pullKey;
     private static final KeyBinding.Category CATEGORY = KeyBinding.Category.create(Identifier.of("arrowrip", "main"));
     private static final DustParticleEffect BLOOD = new DustParticleEffect(0x7A0202, 1.15f);
     private static final DustParticleEffect DARK_BLOOD = new DustParticleEffect(0x380000, 1.35f);
+
     private static int holdTicks = 0;
     private static int animationTicks = 0;
     private static int visualArrowCount = 0;
@@ -29,6 +36,12 @@ public final class ArrowRipClient implements ClientModInitializer {
     private static int dripCooldown = 0;
     private static int groundBloodTicks = 0;
     private static double groundBloodX, groundBloodY, groundBloodZ;
+
+    // Client-only sword lodged in another player's abdomen.
+    private static UUID stabbedTargetUuid = null;
+    private static ItemEntity stabbedSwordEntity = null;
+    private static int stabbedSwordTicks = 0;
+    private static int stabbedBloodCooldown = 0;
 
     @Override
     public void onInitializeClient() {
@@ -38,7 +51,21 @@ public final class ArrowRipClient implements ClientModInitializer {
                 GLFW.GLFW_KEY_G,
                 CATEGORY
         ));
+
         ClientTickEvents.END_CLIENT_TICK.register(ArrowRipClient::tick);
+
+        AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
+            if (!world.isClient() || hand != Hand.MAIN_HAND || !(entity instanceof PlayerEntity target)) {
+                return ActionResult.PASS;
+            }
+            ItemStack held = player.getMainHandStack();
+            if (!(held.getItem() instanceof SwordItem)) {
+                return ActionResult.PASS;
+            }
+            MinecraftClient client = MinecraftClient.getInstance();
+            lodgeSwordInTarget(client, player, target, held);
+            return ActionResult.PASS;
+        });
     }
 
     private static void tick(MinecraftClient client) {
@@ -50,6 +77,7 @@ public final class ArrowRipClient implements ClientModInitializer {
             bleedTicks = 0;
             dripCooldown = 0;
             groundBloodTicks = 0;
+            clearStabVisual();
             return;
         }
 
@@ -77,6 +105,8 @@ public final class ArrowRipClient implements ClientModInitializer {
             if (groundBloodTicks % 3 == 0) spawnGroundBlood(client);
         }
 
+        tickStabbedSword(client);
+
         if (pullKey.isPressed() && visualArrowCount > 0) {
             holdTicks++;
             if (holdTicks == 1) {
@@ -97,6 +127,96 @@ public final class ArrowRipClient implements ClientModInitializer {
             }
         } else {
             holdTicks = 0;
+        }
+    }
+
+    private static void lodgeSwordInTarget(MinecraftClient client, PlayerEntity attacker, PlayerEntity target, ItemStack swordStack) {
+        if (client.world == null) return;
+        clearStabVisual();
+
+        stabbedTargetUuid = target.getUuid();
+        stabbedSwordTicks = 65;
+        stabbedBloodCooldown = 0;
+
+        Vec3d towardAttacker = attacker.getPos().subtract(target.getPos());
+        if (towardAttacker.lengthSquared() < 0.0001) towardAttacker = new Vec3d(0, 0, 1);
+        towardAttacker = towardAttacker.normalize();
+
+        double x = target.getX() + towardAttacker.x * 0.20;
+        double y = target.getY() + target.getHeight() * 0.52;
+        double z = target.getZ() + towardAttacker.z * 0.20;
+
+        stabbedSwordEntity = new ItemEntity(client.world, x, y, z, swordStack.copyWithCount(1));
+        stabbedSwordEntity.setPickupDelayInfinite();
+        stabbedSwordEntity.setNoGravity(true);
+        stabbedSwordEntity.setVelocity(Vec3d.ZERO);
+        stabbedSwordEntity.setYaw(target.getYaw() + 90.0f);
+        client.world.addEntity(stabbedSwordEntity);
+
+        target.playSound(SoundEvents.ENTITY_PLAYER_HURT, 0.55f, 0.78f);
+        target.playSound(SoundEvents.ENTITY_SLIME_SQUISH_SMALL, 0.30f, 0.62f);
+        spawnTargetBlood(client, target, 26);
+    }
+
+    private static void tickStabbedSword(MinecraftClient client) {
+        if (stabbedSwordTicks <= 0 || stabbedTargetUuid == null || stabbedSwordEntity == null || client.world == null) {
+            if (stabbedSwordTicks <= 0) clearStabVisual();
+            return;
+        }
+
+        Entity entity = client.world.getPlayerByUuid(stabbedTargetUuid);
+        if (!(entity instanceof PlayerEntity target) || !target.isAlive()) {
+            clearStabVisual();
+            return;
+        }
+
+        stabbedSwordTicks--;
+        if (stabbedBloodCooldown > 0) stabbedBloodCooldown--;
+
+        Vec3d towardViewer = client.player != null ? client.player.getPos().subtract(target.getPos()) : new Vec3d(0, 0, 1);
+        if (towardViewer.lengthSquared() < 0.0001) towardViewer = new Vec3d(0, 0, 1);
+        towardViewer = towardViewer.normalize();
+
+        double x = target.getX() + towardViewer.x * 0.20;
+        double y = target.getY() + target.getHeight() * 0.52;
+        double z = target.getZ() + towardViewer.z * 0.20;
+        stabbedSwordEntity.setPosition(x, y, z);
+        stabbedSwordEntity.setVelocity(Vec3d.ZERO);
+        stabbedSwordEntity.setYaw(target.getYaw() + 90.0f);
+
+        if (stabbedBloodCooldown <= 0) {
+            spawnTargetBlood(client, target, 3);
+            stabbedBloodCooldown = 5 + client.world.random.nextInt(5);
+        }
+
+        if (stabbedSwordTicks == 1) {
+            spawnTargetBlood(client, target, 10);
+        }
+    }
+
+    private static void clearStabVisual() {
+        if (stabbedSwordEntity != null) {
+            stabbedSwordEntity.discard();
+        }
+        stabbedSwordEntity = null;
+        stabbedTargetUuid = null;
+        stabbedSwordTicks = 0;
+        stabbedBloodCooldown = 0;
+    }
+
+    private static void spawnTargetBlood(MinecraftClient client, PlayerEntity target, int amount) {
+        if (client.world == null) return;
+        double y = target.getY() + target.getHeight() * 0.52;
+        for (int i = 0; i < amount; i++) {
+            double ox = (client.world.random.nextDouble() - 0.5) * 0.32;
+            double oz = (client.world.random.nextDouble() - 0.5) * 0.32;
+            client.world.addParticleClient(i % 3 == 0 ? DARK_BLOOD : BLOOD,
+                    target.getX() + ox,
+                    y + (client.world.random.nextDouble() - 0.5) * 0.20,
+                    target.getZ() + oz,
+                    (client.world.random.nextDouble() - 0.5) * 0.035,
+                    -0.035 - client.world.random.nextDouble() * 0.03,
+                    (client.world.random.nextDouble() - 0.5) * 0.035);
         }
     }
 
