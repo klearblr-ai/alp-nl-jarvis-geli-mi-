@@ -119,6 +119,7 @@ public final class ArrowRipClient implements ClientModInitializer {
         biteOldYaw = demon.getYaw(); biteOldPitch = demon.getPitch(); bitePoseActive = true;
         faceNeck(demon,target,22f);
         demon.setSneaking(true);
+        demon.getHungerManager().add(2, 0.6f);
         target.playSound(SoundEvents.ENTITY_PLAYER_HURT,0.58f,0.52f);
         target.playSound(SoundEvents.ENTITY_SLIME_SQUISH_SMALL,0.52f,0.42f);
         spawnBiteBurst(client,target,demon,42);
@@ -143,8 +144,12 @@ public final class ArrowRipClient implements ClientModInitializer {
             spawnBloodStreamToDemon(client,target,demon,9);
             biteBloodCooldown = 2;
         }
-        if (biteTicks % 14 == 0) target.playSound(SoundEvents.ENTITY_SLIME_SQUISH_SMALL,0.16f,0.54f);
+        if (biteTicks % 12 == 0) {
+            demon.getHungerManager().add(1, 0.45f);
+            target.playSound(SoundEvents.ENTITY_SLIME_SQUISH_SMALL,0.16f,0.54f);
+        }
         if (biteTicks == 1) {
+            demon.getHungerManager().add(2, 0.8f);
             spawnNeckBlood(client,target,18);
             endBitePose(demon);
         }
