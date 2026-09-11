@@ -25,8 +25,8 @@ public final class AnimeAnimationClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (emoteKey.wasPressed()) {
                 emoteType++;
-                if (emoteType > 5) emoteType = 1;
-                emoteTicks = 120;
+                if (emoteType > 9) emoteType = 1;
+                emoteTicks = 140;
                 sitting = false;
                 if (client.player != null) {
                     String name = switch (emoteType) {
@@ -34,7 +34,11 @@ public final class AnimeAnimationClient implements ClientModInitializer {
                         case 2 -> "DÜŞÜNME";
                         case 3 -> "VICTORY";
                         case 4 -> "KILIÇ DURUŞU";
-                        default -> "ANIME BOW";
+                        case 5 -> "ANIME BOW";
+                        case 6 -> "VILLAIN LAUGH";
+                        case 7 -> "COOL POSE";
+                        case 8 -> "RAGE";
+                        default -> "SALUTE";
                     };
                     client.player.sendMessage(Text.literal("Anime emote: " + name), true);
                 }
@@ -53,15 +57,7 @@ public final class AnimeAnimationClient implements ClientModInitializer {
         });
     }
 
-    public static int getEmoteType() {
-        return emoteType;
-    }
-
-    public static int getEmoteTicks() {
-        return emoteTicks;
-    }
-
-    public static boolean isSitting() {
-        return sitting;
-    }
+    public static int getEmoteType() { return emoteType; }
+    public static int getEmoteTicks() { return emoteTicks; }
+    public static boolean isSitting() { return sitting; }
 }
