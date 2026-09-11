@@ -11,14 +11,12 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.particle.DustParticleEffect;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.Hand;
-import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.UUID;
 
 public final class BloodBendingClient implements ClientModInitializer {
-    private static final KeyBinding.Category CATEGORY = KeyBinding.Category.create(Identifier.of("arrowrip", "main"));
     private static final DustParticleEffect BLOOD = new DustParticleEffect(0x8A0008, 1.30f);
     private static final DustParticleEffect DARK = new DustParticleEffect(0x340000, 1.55f);
     private static final DustParticleEffect BRIGHT = new DustParticleEffect(0xD10A12, 0.95f);
@@ -35,9 +33,9 @@ public final class BloodBendingClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         bendKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.arrowrip.blood_bend", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_K, CATEGORY));
+                "key.arrowrip.blood_bend", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_K, ArrowRipClient.CATEGORY));
         throwKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.arrowrip.blood_throw", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_J, CATEGORY));
+                "key.arrowrip.blood_throw", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_J, ArrowRipClient.CATEGORY));
         ClientTickEvents.END_CLIENT_TICK.register(BloodBendingClient::tick);
     }
 
