@@ -6,7 +6,10 @@
     "AnimePlayerModelMixin",
     "AnimeContextPoseMixin",
     "SwordComboMixin",
-    "ArmJointPolishMixin"
+    "ArmJointPolishMixin",
+    "FingerGeometryMixin",
+    "FingerAnimationMixin",
+    "FistNeckSceneMixin"
   ],
   "injectors": {
     "defaultRequire": 1
