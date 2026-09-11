@@ -12,7 +12,8 @@
     "FistNeckSceneMixin",
     "AutoPvPAnimationMixin",
     "BlenderRigGeometryMixin",
-    "BlenderRigAnimationMixin"
+    "BlenderRigAnimationMixin",
+    "AIRigToggleVisibilityMixin"
   ],
   "injectors": {
     "defaultRequire": 1
