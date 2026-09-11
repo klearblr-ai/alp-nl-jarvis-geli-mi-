@@ -3,10 +3,10 @@
   "id": "arrowrip",
   "version": "${version}",
   "name": "Arrow Rip",
-  "description": "Client-side combat visuals, adaptive music, VIZ HUD and a blue emissive aura.",
+  "description": "Client-side combat visuals, adaptive music, VIZ HUD, blue aura and grin mouth overlay.",
   "authors": ["klearblrZ + OpenAI"],
   "environment": "client",
-  "entrypoints": {"client": ["com.klearblrz.arrowrip.ArrowRipClient", "com.klearblrz.arrowrip.BloodBendingClient", "com.klearblrz.arrowrip.BrutalFinisherClient", "com.klearblrz.arrowrip.BlueAuraClient"]},
+  "entrypoints": {"client": ["com.klearblrz.arrowrip.ArrowRipClient", "com.klearblrz.arrowrip.BloodBendingClient", "com.klearblrz.arrowrip.BrutalFinisherClient", "com.klearblrz.arrowrip.BlueAuraClient", "com.klearblrz.arrowrip.MouthOverlayClient"]},
   "depends": {
     "fabricloader": ">=0.18.4",
     "minecraft": "=1.21.11",
