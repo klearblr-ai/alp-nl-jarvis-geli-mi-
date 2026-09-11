@@ -8,6 +8,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.Perspective;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.BlockItem;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.text.Text;
 import net.minecraft.util.hit.BlockHitResult;
@@ -19,6 +20,7 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
     private static int kickTicks;
     private static int punchTicks;
     private static int mineTicks;
+    private static int bedBreakTicks;
     private static int placeTicks;
     private static int finisherTicks;
     private static int finisherDuration = 38;
@@ -33,12 +35,12 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        ClientTickEvents.END_CLIENT_TICK.register(client -> tick(client));
+        ClientTickEvents.END_CLIENT_TICK.register(AutoPvPAnimationClient::tick);
         HudRenderCallback.EVENT.register((ctx, tickCounter) -> renderCinematic(ctx));
     }
 
     private static void tick(MinecraftClient client) {
-        if (client.player == null || client.world == null) {
+        if (client.player == null || client.world == null || !ProceduralAIRigClient.isEnabled()) {
             resetTransient();
             lastHealth = -1.0F;
             return;
@@ -56,10 +58,15 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
         boolean attackDown = client.options.attackKey.isPressed();
         boolean useDown = client.options.useKey.isPressed();
         boolean attackPressed = attackDown && !lastAttackDown;
-        boolean usePressed = useDown && !lastUseDown;
 
-        if (attackDown && client.crosshairTarget instanceof BlockHitResult) {
-            mineTicks = 6;
+        if (attackDown && client.crosshairTarget instanceof BlockHitResult hit) {
+            boolean bed = client.world.getBlockState(hit.getBlockPos()).isIn(BlockTags.BEDS);
+            if (bed) {
+                bedBreakTicks = 8;
+                mineTicks = 0;
+            } else if (bedBreakTicks <= 0) {
+                mineTicks = 6;
+            }
         }
 
         boolean holdingBlock = p.getMainHandStack().getItem() instanceof BlockItem
@@ -68,16 +75,14 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
             placeTicks = 6;
         }
 
-        if (attackPressed && client.targetedEntity instanceof PlayerEntity target && target != p && p.distanceTo(target) <= 3.6F) {
+        if (attackPressed && client.targetedEntity instanceof PlayerEntity target && target != p && p.distanceTo(target) <= 4.25F) {
             attackSequence++;
             boolean sword = p.getMainHandStack().isIn(ItemTags.SWORDS);
             if (sword) {
-                // Most hits use the existing 8-slash system; every fourth close hit becomes a thrust.
                 if ((attackSequence & 3) == 0) stabTicks = 13;
                 float ratio = target.getHealth() / Math.max(1.0F, target.getMaxHealth());
                 if (ratio <= 0.28F && finisherTicks <= 0) startFinisher(client, target);
             } else {
-                // Hand combat alternates pro punches with a kick.
                 if (attackSequence % 3 == 0) kickTicks = 15;
                 else punchTicks = 9;
             }
@@ -93,6 +98,7 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
         if (kickTicks > 0) kickTicks--;
         if (punchTicks > 0) punchTicks--;
         if (mineTicks > 0 && !attackDown) mineTicks--;
+        if (bedBreakTicks > 0 && !attackDown) bedBreakTicks--;
         if (placeTicks > 0 && !useDown) placeTicks--;
 
         lastAttackDown = attackDown;
@@ -106,6 +112,7 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
         kickTicks = 0;
         punchTicks = 0;
         mineTicks = 0;
+        bedBreakTicks = 0;
         placeTicks = 0;
         if (!cinematicPerspective) {
             savedPerspective = client.options.getPerspective();
@@ -140,7 +147,7 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
     }
 
     private static void resetTransient() {
-        hurtTicks = landingTicks = stabTicks = kickTicks = punchTicks = mineTicks = placeTicks = finisherTicks = 0;
+        hurtTicks = landingTicks = stabTicks = kickTicks = punchTicks = mineTicks = bedBreakTicks = placeTicks = finisherTicks = 0;
         finisherTargetId = -1;
         lastAttackDown = false;
         lastUseDown = false;
@@ -152,6 +159,7 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
     public static int getKickTicks() { return kickTicks; }
     public static int getPunchTicks() { return punchTicks; }
     public static int getMineTicks() { return mineTicks; }
+    public static int getBedBreakTicks() { return bedBreakTicks; }
     public static int getPlaceTicks() { return placeTicks; }
     public static int getFinisherTicks() { return finisherTicks; }
     public static int getFinisherTargetId() { return finisherTargetId; }
