@@ -8,6 +8,12 @@ import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
+/**
+ * Crash-safe mouth controller.
+ * The previous world-space textured quad was intentionally removed because
+ * switching perspective with F5 could hit an unsafe render state on 1.21.11.
+ * Position/size controls stay registered so they can be reused by the safer renderer later.
+ */
 public final class MouthOverlayClient implements ClientModInitializer {
     private static KeyBinding mouthKey, upKey, downKey, leftKey, rightKey, forwardKey, backKey, biggerKey, smallerKey, resetKey;
     private static boolean enabled = false;
@@ -30,9 +36,12 @@ public final class MouthOverlayClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (mouthKey.wasPressed()) {
                 enabled = !enabled;
-                if (client.player != null) client.player.sendMessage(Text.literal(enabled ? "Ağız: AÇIK" : "Ağız: KAPALI"), true);
+                if (client.player != null) {
+                    client.player.sendMessage(Text.literal(enabled ? "Ağız ayarı: AÇIK" : "Ağız ayarı: KAPALI"), true);
+                }
             }
             if (!enabled) return;
+
             boolean changed = false;
             while (upKey.wasPressed()) { offsetY += 0.015; changed = true; }
             while (downKey.wasPressed()) { offsetY -= 0.015; changed = true; }
@@ -42,8 +51,12 @@ public final class MouthOverlayClient implements ClientModInitializer {
             while (backKey.wasPressed()) { offsetZ += 0.008; changed = true; }
             while (biggerKey.wasPressed()) { scale = Math.min(2.0f, scale + 0.05f); changed = true; }
             while (smallerKey.wasPressed()) { scale = Math.max(0.35f, scale - 0.05f); changed = true; }
-            while (resetKey.wasPressed()) { offsetX = offsetY = offsetZ = 0; scale = 1.0f; changed = true; }
-            if (changed && client.player != null) client.player.sendMessage(Text.literal(String.format("Ağız ayarı X %.2f Y %.2f Z %.2f %.2fx", offsetX, offsetY, offsetZ, scale)), true);
+            while (resetKey.wasPressed()) { offsetX = offsetY = offsetZ = 0.0; scale = 1.0f; changed = true; }
+
+            if (changed && client.player != null) {
+                client.player.sendMessage(Text.literal(String.format(
+                        "Ağız ayarı X %.2f Y %.2f Z %.2f %.2fx", offsetX, offsetY, offsetZ, scale)), true);
+            }
         });
     }
 
