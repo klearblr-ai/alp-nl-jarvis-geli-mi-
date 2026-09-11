@@ -32,12 +32,16 @@ public final class BrutalFinisherClient implements ClientModInitializer {
     private static KeyBinding finisherKey;
 
     private static final Track[] TRACKS = {
-            new Track("/assets/arrowrip/dark_knight.mp3", 129.19921875),
-            new Track("/assets/arrowrip/hxme_invasion.mp3", 123.046875),
-            new Track("/assets/arrowrip/level_up.mp3", 123.046875),
-            new Track("/assets/arrowrip/our_wxrld.mp3", 117.45383522727273),
-            new Track("/assets/arrowrip/rage_quit.mp3", 117.45383522727273)
+            new Track("DARK KNIGHT", "/assets/arrowrip/dark_knight.mp3", 129.19921875),
+            new Track("HXME INVASION", "/assets/arrowrip/hxme_invasion.mp3", 123.046875),
+            new Track("Level Up", "/assets/arrowrip/level_up.mp3", 123.046875),
+            new Track("OUR WXRLD", "/assets/arrowrip/our_wxrld.mp3", 117.45383522727273),
+            new Track("RAGE QUIT", "/assets/arrowrip/rage_quit.mp3", 117.45383522727273)
     };
+
+    public enum FinisherMode { SWORD_RAIN, DECAPITATION, MIXED }
+    private static FinisherMode selectedMode = FinisherMode.MIXED;
+    private static int selectedTrack = -1; // -1 = random
 
     private static UUID lastCombatTarget;
     private static Vec3d lastCombatPosition = Vec3d.ZERO;
@@ -48,6 +52,8 @@ public final class BrutalFinisherClient implements ClientModInitializer {
     private static int nextBeatTick;
     private static int beatIntervalTicks = 10;
     private static int finisherEndTick = 320;
+    private static int finisherBeatCount = 24;
+    private static boolean decapAtEnd = true;
     private static Track activeTrack = TRACKS[0];
     private static Vec3d finisherOrigin = Vec3d.ZERO;
     private static final List<SwordVisual> swords = new ArrayList<>();
@@ -62,6 +68,38 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         finisherKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.arrowrip.brutal_finisher", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_H, ArrowRipClient.CATEGORY));
         ClientTickEvents.END_CLIENT_TICK.register(BrutalFinisherClient::tick);
+    }
+
+    public static void cycleMode() {
+        selectedMode = switch (selectedMode) {
+            case SWORD_RAIN -> FinisherMode.DECAPITATION;
+            case DECAPITATION -> FinisherMode.MIXED;
+            case MIXED -> FinisherMode.SWORD_RAIN;
+        };
+    }
+
+    public static String getModeName() {
+        return switch (selectedMode) {
+            case SWORD_RAIN -> "Kılıç Yağmuru";
+            case DECAPITATION -> "Kafa Koparma";
+            case MIXED -> "Karışık";
+        };
+    }
+
+    public static void cycleTrack() {
+        selectedTrack++;
+        if (selectedTrack >= TRACKS.length) selectedTrack = -1;
+    }
+
+    public static String getTrackName() {
+        return selectedTrack < 0 ? "Rastgele" : TRACKS[selectedTrack].name;
+    }
+
+    public static void previewCurrentTarget(MinecraftClient client) {
+        if (client == null || client.player == null || client.world == null) return;
+        if (client.targetedEntity instanceof PlayerEntity target && target != client.player && client.player.distanceTo(target) < 8.0f) {
+            startFinisher(client, client.player, new Vec3d(target.getX(), target.getY(), target.getZ()));
+        }
     }
 
     private static void tick(MinecraftClient client) {
@@ -80,8 +118,6 @@ public final class BrutalFinisherClient implements ClientModInitializer {
             combatMemoryTicks = 60;
         }
 
-        // Reliable automatic trigger: if the recently hit player dies OR disappears from the client right after the kill,
-        // run the finisher at the last position we saw them.
         if (!finisherActive && lastCombatTarget != null && combatMemoryTicks > 0) {
             PlayerEntity target = client.world.getPlayerByUuid(lastCombatTarget);
             if (target == null) {
@@ -96,11 +132,8 @@ public final class BrutalFinisherClient implements ClientModInitializer {
             }
         }
 
-        // H stays as a manual preview/test key.
         while (finisherKey.wasPressed()) {
-            if (client.targetedEntity instanceof PlayerEntity target && target != self && self.distanceTo(target) < 8.0f) {
-                startFinisher(client, self, new Vec3d(target.getX(), target.getY(), target.getZ()));
-            }
+            if (!finisherActive) client.setScreen(new FinisherMenuScreen());
         }
 
         if (finisherActive) tickFinisher(client, self);
@@ -127,10 +160,17 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         finisherActive = true;
         finisherTick = 0;
         beatIndex = 0;
-        activeTrack = TRACKS[ThreadLocalRandom.current().nextInt(TRACKS.length)];
+        activeTrack = selectedTrack < 0 ? TRACKS[ThreadLocalRandom.current().nextInt(TRACKS.length)] : TRACKS[selectedTrack];
         beatIntervalTicks = Math.max(8, Math.round((float)(1200.0 / activeTrack.bpm)));
         nextBeatTick = 1;
-        finisherEndTick = beatIntervalTicks * 32 + 52;
+
+        switch (selectedMode) {
+            case SWORD_RAIN -> { finisherBeatCount = 32; decapAtEnd = false; }
+            case DECAPITATION -> { finisherBeatCount = 8; decapAtEnd = true; }
+            case MIXED -> { finisherBeatCount = 24; decapAtEnd = true; }
+        }
+
+        finisherEndTick = beatIntervalTicks * finisherBeatCount + (decapAtEnd ? 52 : 28);
         finisherOrigin = origin;
         self.swingHand(Hand.MAIN_HAND);
         self.playSound(SoundEvents.ENTITY_PLAYER_ATTACK_SWEEP, 0.65f, 0.72f);
@@ -148,19 +188,17 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         client.options.jumpKey.setPressed(false);
         client.options.sneakKey.setPressed(false);
 
-        if (beatIndex < 32 && finisherTick >= nextBeatTick) {
+        if (beatIndex < finisherBeatCount && finisherTick >= nextBeatTick) {
             beatStab(client, self, beatIndex);
             beatIndex++;
             nextBeatTick += beatIntervalTicks;
         }
 
-        if (beatIndex >= 32 && finisherTick == nextBeatTick + 2) {
+        if (decapAtEnd && beatIndex >= finisherBeatCount && finisherTick == nextBeatTick + 2) {
             decapitationEffect(client);
         }
 
-        if (finisherTick > finisherEndTick) {
-            finishFinisher(client);
-        }
+        if (finisherTick > finisherEndTick) finishFinisher(client);
     }
 
     private static void finishFinisher(MinecraftClient client) {
@@ -272,7 +310,7 @@ public final class BrutalFinisherClient implements ClientModInitializer {
             } finally {
                 musicPlayer = null;
             }
-        }, "ArrowRip-Random-Finisher-Music");
+        }, "ArrowRip-Finisher-Music");
         t.setDaemon(true);
         t.start();
     }
@@ -293,7 +331,7 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         headTick = 0;
     }
 
-    private record Track(String path, double bpm) {}
+    private record Track(String name, String path, double bpm) {}
 
     private static final class SwordVisual {
         final ArmorStandEntity entity;
