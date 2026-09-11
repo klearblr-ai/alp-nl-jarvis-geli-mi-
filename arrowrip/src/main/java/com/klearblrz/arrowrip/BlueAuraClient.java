@@ -4,10 +4,6 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.LightBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.render.RenderLayers;
@@ -15,7 +11,6 @@ import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexRendering;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.shape.VoxelShapes;
@@ -35,52 +30,50 @@ public final class BlueAuraClient implements ClientModInitializer {
     private static Clip auraClip;
     private static int auraTicks;
 
-    private static BlockPos lightPos;
-    private static BlockState replacedState;
-
     @Override
     public void onInitializeClient() {
         auraKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.arrowrip.blue_aura", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_U, ArrowRipClient.CATEGORY));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (auraKey.wasPressed()) {
-                auraActive = !auraActive;
-                if (auraActive) enableAura(client);
-                else disableAura(client);
-            }
-
-            if (client.player == null || client.world == null) {
-                if (auraActive) {
-                    auraActive = false;
-                    stopAuraSound();
-                    lightPos = null;
-                    replacedState = null;
+            try {
+                while (auraKey.wasPressed()) {
+                    auraActive = !auraActive;
+                    if (auraActive) {
+                        auraTicks = 0;
+                        playAuraSound();
+                    } else {
+                        stopAuraSound();
+                        auraTicks = 0;
+                    }
                 }
-                return;
-            }
 
-            if (auraActive) {
-                auraTicks++;
-                keepBodyLight(client);
+                if (client.player == null || client.world == null) {
+                    if (auraActive) {
+                        auraActive = false;
+                        stopAuraSound();
+                        auraTicks = 0;
+                    }
+                    return;
+                }
+
+                if (auraActive) auraTicks++;
+            } catch (Throwable ignored) {
+                auraActive = false;
+                stopAuraSound();
+                auraTicks = 0;
             }
         });
 
-        WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context ->
-                renderAura(context.matrices(), context.consumers().getBuffer(RenderLayers.linesTranslucent())));
-    }
-
-    private static void enableAura(MinecraftClient client) {
-        if (client.player == null || client.world == null) return;
-        auraTicks = 0;
-        keepBodyLight(client);
-        playAuraSound();
-    }
-
-    private static void disableAura(MinecraftClient client) {
-        stopAuraSound();
-        restoreLight(client);
-        auraTicks = 0;
+        WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> {
+            if (!auraActive) return;
+            try {
+                VertexConsumer lines = context.consumers().getBuffer(RenderLayers.linesTranslucent());
+                renderAura(context.matrices(), lines);
+            } catch (Throwable ignored) {
+                // Rendering must never be allowed to crash the whole client.
+            }
+        });
     }
 
     private static void renderAura(MatrixStack matrices, VertexConsumer lines) {
@@ -91,13 +84,13 @@ public final class BlueAuraClient implements ClientModInitializer {
         double px = client.player.getX() - camera.x;
         double py = client.player.getY() - camera.y;
         double pz = client.player.getZ() - camera.z;
-        double pulse = 0.015 + 0.020 * (0.5 + 0.5 * Math.sin(auraTicks * 0.32));
+        double pulse = 0.012 + 0.024 * (0.5 + 0.5 * Math.sin(auraTicks * 0.30));
 
-        for (int layer = 0; layer < 7; layer++) {
-            double e = pulse + layer * 0.018;
-            float fade = 0.92f - layer * 0.105f;
-            int color = argb(fade, 0.08f + layer * 0.018f, 0.60f + layer * 0.045f, 1.0f);
-            float width = 1.4f + layer * 0.33f;
+        for (int layer = 0; layer < 6; layer++) {
+            double e = pulse + layer * 0.019;
+            float fade = 0.88f - layer * 0.12f;
+            int color = argb(fade, 0.05f + layer * 0.012f, 0.52f + layer * 0.055f, 1.0f);
+            float width = 1.3f + layer * 0.30f;
 
             drawBodyPart(matrices, lines, new Box(-0.31-e, 1.43-e, -0.31-e, 0.31+e, 2.05+e, 0.31+e), px, py, pz, color, width);
             drawBodyPart(matrices, lines, new Box(-0.37-e, 0.68-e, -0.22-e, 0.37+e, 1.50+e, 0.22+e), px, py, pz, color, width);
@@ -107,11 +100,10 @@ public final class BlueAuraClient implements ClientModInitializer {
             drawBodyPart(matrices, lines, new Box(0.02-e, -0.03-e, -0.18-e, 0.31+e, 0.72+e, 0.18+e), px, py, pz, color, width);
         }
 
-        double halo = 0.10 + 0.04 * Math.sin(auraTicks * 0.23);
-        drawBodyPart(matrices, lines, new Box(-0.72-halo, -0.10, -0.42-halo, 0.72+halo, 2.12, 0.42+halo),
-                px, py, pz, argb(0.36f, 0.03f, 0.45f, 1.0f), 2.2f);
-        drawBodyPart(matrices, lines, new Box(-0.82-halo, -0.18, -0.50-halo, 0.82+halo, 2.20, 0.50+halo),
-                px, py, pz, argb(0.18f, 0.02f, 0.28f, 1.0f), 2.8f);
+        double halo = 0.08 + 0.035 * Math.sin(auraTicks * 0.22);
+        drawBodyPart(matrices, lines,
+                new Box(-0.72-halo, -0.10, -0.42-halo, 0.72+halo, 2.12, 0.42+halo),
+                px, py, pz, argb(0.28f, 0.02f, 0.40f, 1.0f), 2.0f);
     }
 
     private static void drawBodyPart(MatrixStack matrices, VertexConsumer lines, Box localBox,
@@ -127,32 +119,6 @@ public final class BlueAuraClient implements ClientModInitializer {
         return (ai << 24) | (ri << 16) | (gi << 8) | bi;
     }
 
-    private static void keepBodyLight(MinecraftClient client) {
-        if (client.player == null || client.world == null) return;
-        BlockPos wanted = client.player.getBlockPos().up();
-        if (wanted.equals(lightPos)) return;
-        restoreLight(client);
-        BlockState current = client.world.getBlockState(wanted);
-        if (!current.isAir() && !current.isOf(Blocks.LIGHT)) return;
-        lightPos = wanted.toImmutable();
-        replacedState = current;
-        BlockState light = Blocks.LIGHT.getDefaultState().with(LightBlock.LEVEL_15, 15);
-        client.world.setBlockState(lightPos, light, Block.NOTIFY_LISTENERS);
-    }
-
-    private static void restoreLight(MinecraftClient client) {
-        if (lightPos == null || replacedState == null || client.world == null) {
-            lightPos = null;
-            replacedState = null;
-            return;
-        }
-        if (client.world.getBlockState(lightPos).isOf(Blocks.LIGHT)) {
-            client.world.setBlockState(lightPos, replacedState, Block.NOTIFY_LISTENERS);
-        }
-        lightPos = null;
-        replacedState = null;
-    }
-
     private static void playAuraSound() {
         stopAuraSound();
         Thread thread = new Thread(() -> {
@@ -166,7 +132,7 @@ public final class BlueAuraClient implements ClientModInitializer {
                     clip.loop(Clip.LOOP_CONTINUOUSLY);
                     clip.start();
                 }
-            } catch (Exception ignored) {
+            } catch (Throwable ignored) {
                 auraClip = null;
             }
         }, "ArrowRip-Blue-Aura-Sound");
@@ -181,7 +147,7 @@ public final class BlueAuraClient implements ClientModInitializer {
                 clip.stop();
                 clip.close();
             }
-        } catch (Exception ignored) {}
+        } catch (Throwable ignored) {}
         auraClip = null;
     }
 }
