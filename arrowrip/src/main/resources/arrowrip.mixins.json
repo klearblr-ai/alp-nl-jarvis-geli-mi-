@@ -5,7 +5,8 @@
   "client": [
     "AnimePlayerModelMixin",
     "AnimeContextPoseMixin",
-    "SwordComboMixin"
+    "SwordComboMixin",
+    "ArmJointPolishMixin"
   ],
   "injectors": {
     "defaultRequire": 1
