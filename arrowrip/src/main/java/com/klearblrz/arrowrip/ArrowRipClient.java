@@ -12,8 +12,8 @@ import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.item.SwordItem;
 import net.minecraft.particle.DustParticleEffect;
+import net.minecraft.registry.Registries;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
@@ -37,7 +37,6 @@ public final class ArrowRipClient implements ClientModInitializer {
     private static int groundBloodTicks = 0;
     private static double groundBloodX, groundBloodY, groundBloodZ;
 
-    // Client-only sword lodged in another player's abdomen.
     private static UUID stabbedTargetUuid = null;
     private static ItemEntity stabbedSwordEntity = null;
     private static int stabbedSwordTicks = 0;
@@ -59,13 +58,17 @@ public final class ArrowRipClient implements ClientModInitializer {
                 return ActionResult.PASS;
             }
             ItemStack held = player.getMainHandStack();
-            if (!(held.getItem() instanceof SwordItem)) {
+            String itemPath = Registries.ITEM.getId(held.getItem()).getPath();
+            if (!itemPath.endsWith("_sword")) {
                 return ActionResult.PASS;
             }
-            MinecraftClient client = MinecraftClient.getInstance();
-            lodgeSwordInTarget(client, player, target, held);
+            lodgeSwordInTarget(MinecraftClient.getInstance(), player, target, held);
             return ActionResult.PASS;
         });
+    }
+
+    private static Vec3d pos(Entity e) {
+        return new Vec3d(e.getX(), e.getY(), e.getZ());
     }
 
     private static void tick(MinecraftClient client) {
@@ -138,7 +141,7 @@ public final class ArrowRipClient implements ClientModInitializer {
         stabbedSwordTicks = 65;
         stabbedBloodCooldown = 0;
 
-        Vec3d towardAttacker = attacker.getPos().subtract(target.getPos());
+        Vec3d towardAttacker = pos(attacker).subtract(pos(target));
         if (towardAttacker.lengthSquared() < 0.0001) towardAttacker = new Vec3d(0, 0, 1);
         towardAttacker = towardAttacker.normalize();
 
@@ -173,7 +176,7 @@ public final class ArrowRipClient implements ClientModInitializer {
         stabbedSwordTicks--;
         if (stabbedBloodCooldown > 0) stabbedBloodCooldown--;
 
-        Vec3d towardViewer = client.player != null ? client.player.getPos().subtract(target.getPos()) : new Vec3d(0, 0, 1);
+        Vec3d towardViewer = client.player != null ? pos(client.player).subtract(pos(target)) : new Vec3d(0, 0, 1);
         if (towardViewer.lengthSquared() < 0.0001) towardViewer = new Vec3d(0, 0, 1);
         towardViewer = towardViewer.normalize();
 
@@ -195,9 +198,7 @@ public final class ArrowRipClient implements ClientModInitializer {
     }
 
     private static void clearStabVisual() {
-        if (stabbedSwordEntity != null) {
-            stabbedSwordEntity.discard();
-        }
+        if (stabbedSwordEntity != null) stabbedSwordEntity.discard();
         stabbedSwordEntity = null;
         stabbedTargetUuid = null;
         stabbedSwordTicks = 0;
