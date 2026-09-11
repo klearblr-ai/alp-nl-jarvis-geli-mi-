@@ -15,5 +15,9 @@
   "voice_mada_owatte": {"sounds": ["arrowrip:voice_mada_owatte"]},
   "voice_zetsubou_saigo": {"sounds": ["arrowrip:voice_zetsubou_saigo"]},
   "voice_subete_misete": {"sounds": ["arrowrip:voice_subete_misete"]},
+  "voice_ore_nanda_kamuda": {"sounds": ["arrowrip:voice_ore_nanda_kamuda"]},
+  "voice_kore_wa_nan_da": {"sounds": ["arrowrip:voice_kore_wa_nan_da"]},
+  "voice_omae_kikoeru": {"sounds": ["arrowrip:voice_omae_kikoeru"]},
+  "voice_saigo_bakuhatsu": {"sounds": ["arrowrip:voice_saigo_bakuhatsu"]},
   "ultimate_scream": {"sounds": ["arrowrip:ultimate_scream"]}
 }
