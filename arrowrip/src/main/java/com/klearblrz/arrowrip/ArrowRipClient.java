@@ -11,6 +11,7 @@ import net.minecraft.component.type.PotionContentsComponent;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.projectile.ArrowEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.particle.DustParticleEffect;
@@ -37,7 +38,8 @@ public final class ArrowRipClient implements ClientModInitializer {
     private static int suppressedArrowServerCount = -1;
     private static int throwAnimationTicks;
     private static Vec3d savedThrowLook = new Vec3d(0,0,1);
-    private static ItemEntity bodyArrowEntity;
+    private static ArrowEntity bodyArrowEntity;
+    private static ArrowEntity groundArrowEntity;
 
     private static UUID stabbedTargetUuid;
     private static ItemEntity stabbedWeaponEntity;
@@ -128,8 +130,7 @@ public final class ArrowRipClient implements ClientModInitializer {
         double y = p.getY() + p.getHeight() * 0.62;
         double z = p.getZ() + sideZ;
         if (bodyArrowEntity == null || !bodyArrowEntity.isAlive()) {
-            bodyArrowEntity = new ItemEntity(client.world,x,y,z,new ItemStack(Items.ARROW));
-            bodyArrowEntity.setPickupDelayInfinite();
+            bodyArrowEntity = new ArrowEntity(client.world,x,y,z,new ItemStack(Items.ARROW),null);
             bodyArrowEntity.setNoGravity(true);
             bodyArrowEntity.setVelocity(Vec3d.ZERO);
             client.world.addEntity(bodyArrowEntity);
@@ -137,7 +138,7 @@ public final class ArrowRipClient implements ClientModInitializer {
         bodyArrowEntity.setPosition(x,y,z);
         bodyArrowEntity.setVelocity(Vec3d.ZERO);
         bodyArrowEntity.setYaw(p.getYaw()+90f);
-        bodyArrowEntity.setPitch(0f);
+        bodyArrowEntity.setPitch(4f);
     }
 
     private static void tryStab(MinecraftClient client, PlayerEntity attacker) {
@@ -257,8 +258,8 @@ public final class ArrowRipClient implements ClientModInitializer {
         Vec3d to = new Vec3d(demon.getX(), demon.getEyeY()-0.10, demon.getZ());
         Vec3d delta = to.subtract(from);
         for (int i=0;i<n;i++) {
-            double t=(i+1.0)/(n+1.0); Vec3d p=from.add(delta.multiply(t));
-            c.world.addParticleClient(i%3==0?DARK_BLOOD:BLOOD,p.x+(c.world.random.nextDouble()-.5)*.035,p.y+(c.world.random.nextDouble()-.5)*.035,p.z+(c.world.random.nextDouble()-.5)*.035,delta.x*.04,delta.y*.04,delta.z*.04);
+            double t=(i+1.0)/(n+1.0); Vec3d q=from.add(delta.multiply(t));
+            c.world.addParticleClient(i%3==0?DARK_BLOOD:BLOOD,q.x+(c.world.random.nextDouble()-.5)*.035,q.y+(c.world.random.nextDouble()-.5)*.035,q.z+(c.world.random.nextDouble()-.5)*.035,delta.x*.04,delta.y*.04,delta.z*.04);
         }
     }
 
@@ -268,7 +269,7 @@ public final class ArrowRipClient implements ClientModInitializer {
     }
 
     private static void clearStabVisual(){if(stabbedWeaponEntity!=null)stabbedWeaponEntity.discard();stabbedWeaponEntity=null;stabbedTargetUuid=null;stabbedWeaponTicks=0;stabbedBloodCooldown=0;}
-    private static void reset(){holdTicks=animationTicks=visualArrowCount=bleedTicks=dripCooldown=groundBloodTicks=throwAnimationTicks=0;suppressedArrowServerCount=-1;biteTicks=biteBloodCooldown=0;biteTargetUuid=null;bitePoseActive=false;if(bodyArrowEntity!=null)bodyArrowEntity.discard();bodyArrowEntity=null;clearStabVisual();}
+    private static void reset(){holdTicks=animationTicks=visualArrowCount=bleedTicks=dripCooldown=groundBloodTicks=throwAnimationTicks=0;suppressedArrowServerCount=-1;biteTicks=biteBloodCooldown=0;biteTargetUuid=null;bitePoseActive=false;if(bodyArrowEntity!=null)bodyArrowEntity.discard();bodyArrowEntity=null;if(groundArrowEntity!=null)groundArrowEntity.discard();groundArrowEntity=null;clearStabVisual();}
 
     private static void spawnTargetBlood(MinecraftClient c,PlayerEntity t,int n){double y=t.getY()+t.getHeight()*0.52;for(int i=0;i<n;i++)c.world.addParticleClient(i%3==0?DARK_BLOOD:BLOOD,t.getX()+(c.world.random.nextDouble()-.5)*.32,y+(c.world.random.nextDouble()-.5)*.20,t.getZ()+(c.world.random.nextDouble()-.5)*.32,(c.world.random.nextDouble()-.5)*.035,-.035-c.world.random.nextDouble()*.03,(c.world.random.nextDouble()-.5)*.035);}
 
@@ -291,20 +292,23 @@ public final class ArrowRipClient implements ClientModInitializer {
     private static void dropBloodyArrow(MinecraftClient c,PlayerEntity p,Vec3d look){
         Vec3d l=look.lengthSquared()<0.001?new Vec3d(0,0,1):look.normalize();
         double x=p.getX()+l.x*.72;
-        double y=p.getY()+.04;
+        double y=p.getY()+.11;
         double z=p.getZ()+l.z*.72;
+
         ItemStack bloodyArrow = new ItemStack(Items.TIPPED_ARROW);
         bloodyArrow.set(DataComponentTypes.POTION_CONTENTS,
                 new PotionContentsComponent(Optional.empty(), Optional.of(0x7A0202), List.of(), Optional.empty()));
-        ItemEntity a=new ItemEntity(c.world,x,y,z,bloodyArrow);
-        a.setPickupDelayInfinite();
-        a.setNoGravity(true);
-        a.setVelocity(Vec3d.ZERO);
-        a.setYaw((float)Math.toDegrees(Math.atan2(-l.x,l.z)));
-        a.setPitch(90.0f);
-        c.world.addEntity(a);
+
+        if(groundArrowEntity!=null) groundArrowEntity.discard();
+        groundArrowEntity=new ArrowEntity(c.world,x,y,z,bloodyArrow,null);
+        groundArrowEntity.setNoGravity(true);
+        groundArrowEntity.setVelocity(Vec3d.ZERO);
+        groundArrowEntity.setYaw((float)Math.toDegrees(Math.atan2(-l.x,l.z)));
+        groundArrowEntity.setPitch(55.0f);
+        c.world.addEntity(groundArrowEntity);
+
         groundBloodX=x;groundBloodY=p.getY()+.018;groundBloodZ=z;groundBloodTicks=360;
-        for(int i=0;i<22;i++)c.world.addParticleClient(i%3==0?DARK_BLOOD:BLOOD,x+(c.world.random.nextDouble()-.5)*.18,y+.02,z+(c.world.random.nextDouble()-.5)*.18,(c.world.random.nextDouble()-.5)*.012,-.012-c.world.random.nextDouble()*.018,(c.world.random.nextDouble()-.5)*.012);
+        for(int i=0;i<22;i++)c.world.addParticleClient(i%3==0?DARK_BLOOD:BLOOD,x+(c.world.random.nextDouble()-.5)*.18,p.getY()+.03,z+(c.world.random.nextDouble()-.5)*.18,(c.world.random.nextDouble()-.5)*.012,-.012-c.world.random.nextDouble()*.018,(c.world.random.nextDouble()-.5)*.012);
         spawnGroundBlood(c);
     }
 
