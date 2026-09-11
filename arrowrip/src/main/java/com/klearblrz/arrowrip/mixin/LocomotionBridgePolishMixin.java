@@ -43,10 +43,8 @@ public abstract class LocomotionBridgePolishMixin {
         float bridge = ProceduralAIRigClient.bridge();
         float phase = state.limbSwingAnimationProgress * (0.72F + run * 0.36F);
 
-        // Anime walk: softer torso sway, clearer knee/foot roll and opposite shoulder swing.
         if (walk > 0.03F && bridge < 0.15F) {
             float step = MathHelper.sin(phase);
-            float bob = Math.abs(MathHelper.cos(phase)) * walk;
             model.body.roll += step * 0.035F * walk;
             model.body.yaw += step * 0.045F * walk;
             model.head.roll -= step * 0.020F * walk;
@@ -56,10 +54,8 @@ public abstract class LocomotionBridgePolishMixin {
             ls.pitch += Math.max(0.0F, -step) * 0.15F * walk;
             rfoot.pitch -= 0.10F * step * walk;
             lfoot.pitch += 0.10F * step * walk;
-            rig.pivotY += bob * 0.22F;
         }
 
-        // Anime sprint: stronger forward lean, compact elbows, springy knees and shoulder drive.
         if (run > 0.03F && bridge < 0.15F) {
             float step = MathHelper.sin(phase * 1.08F);
             float kick = Math.abs(MathHelper.cos(phase * 1.08F));
@@ -74,10 +70,8 @@ public abstract class LocomotionBridgePolishMixin {
             ls.pitch += (1.0F - kick) * 0.19F * run;
             rfoot.pitch -= step * 0.12F * run;
             lfoot.pitch += step * 0.12F * run;
-            rig.pivotY += kick * 0.30F * run;
         }
 
-        // Speed-bridge: side-balanced crouched gait + rapid placement arm pulse.
         if (bridge > 0.03F) {
             float pulse = MathHelper.sin(age * 1.35F);
             float place = (MathHelper.sin(age * 2.65F) + 1.0F) * 0.5F;
@@ -101,8 +95,6 @@ public abstract class LocomotionBridgePolishMixin {
             ls.pitch = MathHelper.lerp(bridge, ls.pitch, 0.36F + (1.0F - place) * 0.12F);
             rfoot.pitch = MathHelper.lerp(bridge, rfoot.pitch, -0.20F);
             lfoot.pitch = MathHelper.lerp(bridge, lfoot.pitch, -0.12F);
-
-            rig.pivotY += Math.abs(pulse) * 0.18F * bridge;
             rig.yaw += side * 0.06F * bridge;
         }
     }
