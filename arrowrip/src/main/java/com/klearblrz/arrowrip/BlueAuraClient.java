@@ -13,6 +13,7 @@ import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
+import org.joml.Matrix4f;
 import org.lwjgl.glfw.GLFW;
 
 import javax.sound.sampled.AudioInputStream;
@@ -53,7 +54,6 @@ public final class BlueAuraClient implements ClientModInitializer {
                     if (bloodMode) playAuraSound(); else stopAuraSound();
                     if (client.player != null) client.player.sendMessage(Text.literal(bloodMode ? "Kan Aura: AÇIK" : "Kan Aura: KAPALI"), true);
                 }
-
                 if (client.player == null || client.world == null) {
                     auraActive = false;
                     bloodMode = false;
@@ -75,16 +75,13 @@ public final class BlueAuraClient implements ClientModInitializer {
                 VertexConsumer fill = context.consumers().getBuffer(RenderLayers.debugFilledBox());
                 VertexConsumer lines = context.consumers().getBuffer(RenderLayers.linesTranslucent());
                 renderAura(context.matrices(), fill, lines);
-            } catch (Throwable ignored) {
-                // Visual-only effect: never take the game down with it.
-            }
+            } catch (Throwable ignored) {}
         });
     }
 
     private static void renderAura(MatrixStack matrices, VertexConsumer fill, VertexConsumer lines) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc.player == null || mc.world == null) return;
-        if (mc.options.getPerspective().isFirstPerson()) return;
+        if (mc.player == null || mc.world == null || mc.options.getPerspective().isFirstPerson()) return;
 
         Vec3d cam = mc.gameRenderer.getCamera().getCameraPos();
         double px = mc.player.getX() - cam.x;
@@ -96,32 +93,28 @@ public final class BlueAuraClient implements ClientModInitializer {
         float b = bloodMode ? 0.02f : 1.00f;
         float pulse = (float)(0.5 + 0.5 * Math.sin(auraTicks * 0.34));
 
-        // Dense body-hugging emissive-looking shells. No particles.
         for (int layer = 0; layer < 5; layer++) {
             double e = 0.018 + layer * 0.025 + pulse * 0.012;
             float alpha = Math.max(0.035f, 0.18f - layer * 0.028f);
             drawBody(fill, matrices, px, py, pz, e, r, g, b, alpha);
         }
 
-        // Bright inner flash so the light feels like it comes FROM the body.
         drawBody(fill, matrices, px, py, pz, 0.006 + pulse * 0.008,
                 bloodMode ? 1.0f : 0.40f,
                 bloodMode ? 0.08f : 0.82f,
                 bloodMode ? 0.08f : 1.0f,
                 0.22f + pulse * 0.08f);
 
-        // Opening burst: an expanding full-body light explosion, still geometry not particles.
         if (burstTicks > 0) {
             double t = (18 - burstTicks) / 18.0;
             double e = 0.10 + t * 0.70;
             float a = (float)((1.0 - t) * 0.24);
-            VertexRendering.drawFilledBox(matrices, fill,
+            box(matrices, fill,
                     px - 0.62 - e, py - 0.10 - e, pz - 0.38 - e,
                     px + 0.62 + e, py + 2.06 + e, pz + 0.38 + e,
                     r, g, b, a);
         }
 
-        // Thin crisp rim, so the aura still reads clearly on bright maps.
         int color = argb(0.78f, Math.min(1f,r+0.18f), Math.min(1f,g+0.18f), Math.min(1f,b+0.18f));
         VertexRendering.drawOutline(matrices, lines,
                 net.minecraft.util.shape.VoxelShapes.cuboid(-0.68, -0.08, -0.42, 0.68, 2.10, 0.42),
@@ -139,10 +132,27 @@ public final class BlueAuraClient implements ClientModInitializer {
         box(matrices, fill, px+0.02-e, py-0.03-e, pz-0.18-e, px+0.31+e, py+0.72+e, pz+0.18+e, r,g,b,a);
     }
 
-    private static void box(MatrixStack matrices, VertexConsumer fill,
+    private static void box(MatrixStack matrices, VertexConsumer v,
                             double x1,double y1,double z1,double x2,double y2,double z2,
                             float r,float g,float b,float a) {
-        VertexRendering.drawFilledBox(matrices, fill, x1,y1,z1,x2,y2,z2,r,g,b,a);
+        Matrix4f m = matrices.peek().getPositionMatrix();
+        int c = argb(a,r,g,b);
+        float ax=(float)x1, ay=(float)y1, az=(float)z1, bx=(float)x2, by=(float)y2, bz=(float)z2;
+        quad(v,m, ax,ay,az, bx,ay,az, bx,by,az, ax,by,az,c);
+        quad(v,m, bx,ay,bz, ax,ay,bz, ax,by,bz, bx,by,bz,c);
+        quad(v,m, ax,ay,bz, ax,ay,az, ax,by,az, ax,by,bz,c);
+        quad(v,m, bx,ay,az, bx,ay,bz, bx,by,bz, bx,by,az,c);
+        quad(v,m, ax,by,az, bx,by,az, bx,by,bz, ax,by,bz,c);
+        quad(v,m, ax,ay,bz, bx,ay,bz, bx,ay,az, ax,ay,az,c);
+    }
+
+    private static void quad(VertexConsumer v, Matrix4f m,
+                             float x1,float y1,float z1,float x2,float y2,float z2,
+                             float x3,float y3,float z3,float x4,float y4,float z4,int c) {
+        v.vertex(m,x1,y1,z1).color(c);
+        v.vertex(m,x2,y2,z2).color(c);
+        v.vertex(m,x3,y3,z3).color(c);
+        v.vertex(m,x4,y4,z4).color(c);
     }
 
     private static int argb(float a, float r, float g, float b) {
