@@ -48,12 +48,14 @@ public final class BrutalFinisherClient implements ClientModInitializer {
     private static volatile Player musicPlayer;
     private static volatile boolean playing;
     private static volatile int activeTrack = -1;
+    private static volatile int playbackGeneration;
+
     private static boolean autoMode = true;
-    private static int reevaluateCooldown;
     private static int combatTicks;
     private static int playbackTicks;
     private static boolean visualizerEnabled = true;
     private static boolean lyricsEnabled = true;
+    private static boolean criticalOverrideUsed;
 
     @Override
     public void onInitializeClient() {
@@ -80,14 +82,22 @@ public final class BrutalFinisherClient implements ClientModInitializer {
             }
 
             if (!autoMode) return;
-            if (reevaluateCooldown > 0) {
-                reevaluateCooldown--;
+
+            // AUTO artık duruma her saniye bakıp şarkıyı kesmez.
+            // Normalde mevcut şarkı tamamen biter, sonra o anki duruma göre yenisi seçilir.
+            if (!playing) {
+                int wanted = chooseAutoTrack(p, activeTrack);
+                playTrack(wanted);
                 return;
             }
-            reevaluateCooldown = 20;
 
-            int wanted = chooseAutoTrack(p);
-            if (wanted != activeTrack || !playing) playTrack(wanted);
+            // Tek istisna: can gerçekten kritik seviyeye düşerse bir kere RAGE QUIT'e geçebilir.
+            // Bunu da ilk saniyelerde yapmayarak gereksiz zıplamayı engelliyoruz.
+            float hp = p.getHealth() / Math.max(1.0f, p.getMaxHealth());
+            if (!criticalOverrideUsed && hp <= 0.15f && activeTrack != 4 && playbackTicks >= 300) {
+                criticalOverrideUsed = true;
+                playTrack(4);
+            }
         });
 
         HudRenderCallback.EVENT.register((drawContext, tickCounter) -> renderMusicHud(drawContext));
@@ -140,14 +150,24 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         return out;
     }
 
-    private static int chooseAutoTrack(PlayerEntity p) {
+    private static int chooseAutoTrack(PlayerEntity p, int previousTrack) {
         float hp = p.getHealth() / Math.max(1.0f, p.getMaxHealth());
-        if (hp <= 0.25f) return 4;
-        if (combatTicks > 55) return 0;
-        if (combatTicks > 0) return 1;
-        if (p.isSprinting() || p.getVelocity().horizontalLengthSquared() > 0.08) return 2;
-        if (hp <= 0.55f) return 3;
-        return 2;
+        int wanted;
+
+        if (hp <= 0.25f) wanted = 4;                  // RAGE QUIT
+        else if (combatTicks > 55) wanted = 0;        // DARK KNIGHT
+        else if (combatTicks > 0) wanted = 1;         // HXME INVASION
+        else if (hp <= 0.55f) wanted = 3;             // OUR WXRLD
+        else wanted = 2;                              // Level Up
+
+        // Şarkı doğal olarak bittiyse mümkün olduğunda aynı parçayı arka arkaya tekrarlama.
+        if (wanted == previousTrack) {
+            if (wanted == 0) return 1;
+            if (wanted == 1) return 0;
+            if (wanted == 2) return 3;
+            if (wanted == 3) return 2;
+        }
+        return wanted;
     }
 
     private static void renderMusicHud(DrawContext ctx) {
@@ -182,8 +202,14 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         int cy = panelY + 72;
         double baseRadius = 28.0;
         double beatTicks = Math.max(1.0, 1200.0 / track.bpm);
-        double beatPhase = (playbackTicks % beatTicks) / beatTicks;
-        double beat = Math.pow(Math.max(0.0, Math.sin(beatPhase * Math.PI)), 1.6);
+
+        // Önceki sürümde sinüs yarım vuruşta tepe yapıyordu.
+        // Burada vuruşun TAM başında yükselip hızlıca sönen attack/decay envelope kullanıyoruz.
+        double phase = (playbackTicks % beatTicks) / beatTicks;
+        double beat = Math.exp(-phase * 7.0);
+        double halfBeatPhase = ((playbackTicks + beatTicks * 0.5) % beatTicks) / beatTicks;
+        double halfBeat = Math.exp(-halfBeatPhase * 10.0) * 0.22;
+        double rhythm = clamp01(beat + halfBeat);
 
         for (int i = 0; i < vizSamples; i++) {
             double samplePosition = i / Math.max(1.0, vizSamples - 1.0);
@@ -192,45 +218,47 @@ public final class BrutalFinisherClient implements ClientModInitializer {
                     : samplePosition;
 
             double hz = vizLowHz + (vizHighHz - vizLowHz) * Math.max(0.0, mirrored);
-            double band = 0.50
-                    + 0.23 * Math.sin(playbackTicks * 0.19 + i * 0.31 + hz * 0.014)
-                    + 0.17 * Math.sin(playbackTicks * 0.11 + i * 0.73)
-                    + 0.30 * beat;
-            band = clamp01(band);
+
+            // Küçük spektrum hareketi var ama yüksekliğin çoğunu ritim belirliyor.
+            // Böylece halka gerçekten kick/beat geldiğinde vuruyor.
+            double spectrumMotion = 0.48
+                    + 0.16 * Math.sin(playbackTicks * 0.16 + i * 0.31 + hz * 0.014)
+                    + 0.10 * Math.sin(playbackTicks * 0.09 + i * 0.73);
+            double band = clamp01(0.34 * spectrumMotion + 0.66 * rhythm);
 
             double angle = (Math.PI * 2.0 * i / vizSamples) - Math.PI / 2.0;
 
-            double redR = baseRadius + band * 8.0 * vizRedMult;
+            double redR = baseRadius + band * 10.0 * vizRedMult;
             int rx = (int)Math.round(cx + Math.cos(angle) * redR);
             int ry = (int)Math.round(cy + Math.sin(angle) * redR);
             putPixel(ctx, rx, ry, 0xF0FF1018);
 
-            if (beat > 0.42 && (i & 1) == 0) {
+            if (rhythm > 0.48 && (i & 1) == 0) {
                 putPixel(ctx, rx + 1, ry, 0x99FF0000);
                 putPixel(ctx, rx - 1, ry + 1, 0x9960AAFF);
             }
 
-            double blackR = baseRadius + band * 7.2 * vizBlackMult;
+            double blackR = baseRadius + band * 8.8 * vizBlackMult;
             int bx = (int)Math.round(cx + Math.cos(angle) * blackR);
             int by = (int)Math.round(cy + Math.sin(angle) * blackR);
             putPixel(ctx, bx, by, 0xE8000000);
 
             if (i % 3 == 0) {
                 double inner = baseRadius - 1.0;
-                double outer = baseRadius + 4.0 + band * 8.0 * vizBarMult;
+                double outer = baseRadius + 3.0 + band * 11.0 * vizBarMult;
                 drawRadialLine(ctx, cx, cy, angle, inner, outer, 0xEEFFFFFF);
             }
 
-            if (beat > 0.55 && i % 19 == (playbackTicks % 19)) {
-                double sparkR = baseRadius + 18.0 + band * 7.0;
-                int sx = (int)Math.round(cx + Math.cos(angle + playbackTicks * 0.015) * sparkR);
-                int sy = (int)Math.round(cy + Math.sin(angle + playbackTicks * 0.015) * sparkR);
+            if (rhythm > 0.62 && i % 19 == (playbackTicks % 19)) {
+                double sparkR = baseRadius + 18.0 + band * 9.0;
+                int sx = (int)Math.round(cx + Math.cos(angle + playbackTicks * 0.012) * sparkR);
+                int sy = (int)Math.round(cy + Math.sin(angle + playbackTicks * 0.012) * sparkR);
                 ctx.fill(sx - 1, sy - 1, sx + 2, sy + 2, 0xCCFF3636);
             }
         }
 
-        drawCircle(ctx, cx, cy, (int)Math.round(baseRadius - 2 + beat * 2), 0xD0FFFFFF);
-        if (beat > 0.62) drawCircle(ctx, cx, cy, (int)Math.round(baseRadius + 3 + beat * 4), 0x70FF2020);
+        drawCircle(ctx, cx, cy, (int)Math.round(baseRadius - 2 + rhythm * 3), 0xD0FFFFFF);
+        if (rhythm > 0.58) drawCircle(ctx, cx, cy, (int)Math.round(baseRadius + 3 + rhythm * 6), 0x80FF2020);
     }
 
     private static void drawRadialLine(DrawContext ctx, int cx, int cy, double angle, double r1, double r2, int color) {
@@ -277,7 +305,10 @@ public final class BrutalFinisherClient implements ClientModInitializer {
 
     public static void toggleAutoMode() {
         autoMode = !autoMode;
-        if (autoMode) reevaluateCooldown = 0;
+        if (autoMode && !playing) {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc.player != null) playTrack(chooseAutoTrack(mc.player, activeTrack));
+        }
     }
 
     public static boolean isAutoMode() { return autoMode; }
@@ -295,34 +326,50 @@ public final class BrutalFinisherClient implements ClientModInitializer {
 
     private static void playTrack(int index) {
         if (index < 0 || index >= TRACKS.length) return;
-        stopBackgroundMusic();
+
+        int generation = ++playbackGeneration;
+        closeCurrentPlayerOnly();
+
         activeTrack = index;
         playbackTicks = 0;
-        startMusic(TRACKS[index].path);
+        criticalOverrideUsed = index == 4;
+        startMusic(TRACKS[index].path, generation);
     }
 
-    public static void stopBackgroundMusic() {
+    private static void closeCurrentPlayerOnly() {
         try {
             Player old = musicPlayer;
             if (old != null) old.close();
         } catch (Exception ignored) {}
         musicPlayer = null;
         playing = false;
+    }
+
+    public static void stopBackgroundMusic() {
+        ++playbackGeneration;
+        closeCurrentPlayerOnly();
         playbackTicks = 0;
     }
 
-    private static void startMusic(String resourcePath) {
+    private static void startMusic(String resourcePath, int generation) {
         Thread t = new Thread(() -> {
+            Player p = null;
             try (InputStream in = BrutalFinisherClient.class.getResourceAsStream(resourcePath)) {
-                if (in == null) return;
-                Player p = new Player(in);
+                if (in == null || generation != playbackGeneration) return;
+                p = new Player(in);
+                if (generation != playbackGeneration) {
+                    p.close();
+                    return;
+                }
                 musicPlayer = p;
                 playing = true;
                 p.play();
             } catch (Exception ignored) {
             } finally {
-                musicPlayer = null;
-                playing = false;
+                if (generation == playbackGeneration) {
+                    musicPlayer = null;
+                    playing = false;
+                }
             }
         }, "ArrowRip-Adaptive-Music");
         t.setDaemon(true);
