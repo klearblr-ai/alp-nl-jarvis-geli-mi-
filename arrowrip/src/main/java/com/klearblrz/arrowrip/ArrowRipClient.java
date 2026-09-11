@@ -35,7 +35,7 @@ public final class ArrowRipClient implements ClientModInitializer {
 
     @Override public void onInitializeClient() {
         pullKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.arrowrip.pull", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, CATEGORY));
-        stabKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.arrowrip.stab", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_V, CATEGORY));
+        stabKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.arrowrip.stab", InputUtil.Type.MOUSE, GLFW.GLFW_MOUSE_BUTTON_MIDDLE, CATEGORY));
         ClientTickEvents.END_CLIENT_TICK.register(ArrowRipClient::tick);
     }
 
