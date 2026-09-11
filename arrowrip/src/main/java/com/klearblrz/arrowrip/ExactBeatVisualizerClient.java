@@ -17,6 +17,17 @@ public final class ExactBeatVisualizerClient implements ClientModInitializer {
             {2,12,22,32,42,52,62,73,83,93,103,113,124,134,144,154,164,175,185,195,205,215,225,235,246,256,266,276,286,296,307,316,327,336,345,355,365,375,385,395,406,416,426,435,444,454,464,474,484,495,505,515,525,535,545,555,566,576,586,596,607,616,627,637,647,657,667,678,688,698,708,718,728,739,749,759,769,779,789,799}
     };
     private static final double[] AVG_STEP = {9.26,9.76,9.80,10.10,10.09};
+    private static final int BARS = 24;
+    private static final double[] COS = new double[BARS];
+    private static final double[] SIN = new double[BARS];
+    static {
+        for (int i=0;i<BARS;i++) {
+            double a = Math.PI * 2.0 * i / BARS - Math.PI / 2.0;
+            COS[i] = Math.cos(a);
+            SIN[i] = Math.sin(a);
+        }
+    }
+
     private static Field activeTrackField, playbackTicksField, playingField;
     private static int frameSkip;
 
@@ -36,7 +47,8 @@ public final class ExactBeatVisualizerClient implements ClientModInitializer {
 
     private static void render(DrawContext ctx) {
         try {
-            if ((frameSkip++ & 1) != 0) return;
+            // Render only one of every three frames. The HUD still looks fluid but costs far less GPU/CPU.
+            if ((frameSkip++ % 3) != 0) return;
             if (activeTrackField == null || playbackTicksField == null || playingField == null) return;
             if (!(boolean) playingField.get(null)) return;
             int track = (int) activeTrackField.get(null);
@@ -51,21 +63,18 @@ public final class ExactBeatVisualizerClient implements ClientModInitializer {
             int cy = Math.max(16, h / 2 - 82) + 72;
             double pulse = envelope(track, tick);
             double bass = Math.pow(pulse, 0.72);
-            int bars = 36;
             double base = 28.0;
 
-            for (int i = 0; i < bars; i++) {
-                double a = Math.PI * 2.0 * i / bars - Math.PI / 2.0;
-                double shape = 0.80 + 0.20 * Math.sin(i * 0.71 + tick * 0.08);
-                double amp = (3.0 + bass * 20.0) * shape;
-                double inner = base - 1.0;
+            for (int i = 0; i < BARS; i++) {
+                double shape = 0.82 + 0.18 * Math.sin(i * 0.71 + tick * 0.08);
+                double amp = (2.0 + bass * 18.0) * shape;
+                double inner = base;
                 double outer = base + amp;
                 int color = pulse > 0.62 ? 0xFFFF2638 : 0xFFEAEAEA;
-                radialFast(ctx, cx, cy, a, inner, outer, color);
+                radialFast(ctx, cx, cy, COS[i], SIN[i], inner, outer, color);
             }
 
-            circleFast(ctx, cx, cy, (int)Math.round(base + bass * 7.0), pulse > 0.45 ? 0xCCFF1018 : 0xAAFFFFFF);
-            if (pulse > 0.72) circleFast(ctx, cx, cy, (int)Math.round(base + 10 + bass * 8.0), 0x88FF0000);
+            circleFast(ctx, cx, cy, (int)Math.round(base + bass * 6.0), pulse > 0.45 ? 0xCCFF1018 : 0xAAFFFFFF);
         } catch (Throwable ignored) {}
     }
 
@@ -90,19 +99,19 @@ public final class ExactBeatVisualizerClient implements ClientModInitializer {
         return Math.exp(-dt * 0.92);
     }
 
-    private static void radialFast(DrawContext ctx, int cx, int cy, double a, double r1, double r2, int color) {
-        int steps = Math.max(1, (int)Math.ceil((r2-r1) / 2.0));
+    private static void radialFast(DrawContext ctx, int cx, int cy, double cos, double sin, double r1, double r2, int color) {
+        int steps = Math.max(1, (int)Math.ceil((r2-r1) / 4.0));
         for (int s=0;s<=steps;s++) {
             double r = r1 + (r2-r1) * (s/(double)steps);
-            int x = (int)Math.round(cx + Math.cos(a)*r);
-            int y = (int)Math.round(cy + Math.sin(a)*r);
+            int x = (int)Math.round(cx + cos*r);
+            int y = (int)Math.round(cy + sin*r);
             ctx.fill(x,y,x+1,y+1,color);
         }
     }
 
     private static void circleFast(DrawContext ctx, int cx, int cy, int r, int color) {
-        for (int i=0;i<80;i++) {
-            double a = Math.PI*2*i/80.0;
+        for (int i=0;i<48;i++) {
+            double a = Math.PI*2*i/48.0;
             int x=(int)Math.round(cx+Math.cos(a)*r);
             int y=(int)Math.round(cy+Math.sin(a)*r);
             ctx.fill(x,y,x+1,y+1,color);
