@@ -35,14 +35,19 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
             "Kisama... koko made da!",
             "Mada owatte nai zo!",
             "Zetsubou shiro... kore de saigo da!",
-            "Ore no subete o misete yaru!"
+            "Ore no subete o misete yaru!",
+            "Ore wa... nanda da... KAMUDAAAAAAAAAAAAAAAAAAA!",
+            "Kore wa... nan da... kono chikara wa... mada owattenaiiiii!",
+            "Omae... kikoeru ka... ore no koe ga... KAMUDAAAAAAAAAAAAA!",
+            "Yare yare... koko made ka... iya... mada da... MADA DAAAAAAAA!"
     };
 
     private static final String[] SOUNDS = {
             "voice_nani", "voice_yamero", "voice_ikuzo", "voice_yareyare",
             "voice_madamada", "voice_sugoi", "voice_nanda", "voice_kamuda",
             "voice_omae_shindeiru", "voice_koko_owari", "voice_ore_tomaranai", "voice_kore_chikara",
-            "voice_kisama_koko", "voice_mada_owatte", "voice_zetsubou_saigo", "voice_subete_misete"
+            "voice_kisama_koko", "voice_mada_owatte", "voice_zetsubou_saigo", "voice_subete_misete",
+            "voice_ore_nanda_kamuda", "voice_kore_wa_nan_da", "voice_omae_kikoeru", "voice_saigo_bakuhatsu"
     };
 
     private static KeyBinding voiceKey;
@@ -86,14 +91,13 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
         lastIndex = idx;
 
         subtitle = LINES[idx];
-        subtitleTicks = subtitle.length() > 24 ? 122 : 84;
+        subtitleTicks = subtitle.length() > 38 ? 170 : (subtitle.length() > 24 ? 122 : 84);
 
         PlayerEntity target = null;
         if (client.targetedEntity instanceof PlayerEntity looked && looked != client.player) {
             target = looked;
         }
 
-        // Bi o, bi sen: hedef varsa %50 hedef, %50 sen. Hedef yoksa hep sen.
         boolean targetSpeaks = target != null && ThreadLocalRandom.current().nextBoolean();
         PlayerEntity speaker = targetSpeaks ? target : client.player;
         subtitleTarget = speaker.getName().getString();
@@ -106,7 +110,7 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
             Identifier id = Identifier.of("arrowrip", SOUNDS[idx]);
             SoundEvent event = SoundEvent.of(id);
             client.getSoundManager().play(new EntityTrackingSoundInstance(
-                    event, SoundCategory.MASTER, 1.0f, 0.90f, speaker, System.nanoTime()));
+                    event, SoundCategory.MASTER, 1.0f, 0.88f, speaker, System.nanoTime()));
         } catch (Throwable ignored) {
         }
     }
@@ -150,6 +154,11 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
 
     private static String[] splitSubtitle(String s) {
         if (s.length() <= 34) return new String[]{s};
+        if (s.length() > 58) {
+            int a = s.indexOf(' ', s.length() / 3);
+            int b = s.indexOf(' ', (s.length() * 2) / 3);
+            if (a > 0 && b > a) return new String[]{s.substring(0,a).trim(), s.substring(a+1,b).trim(), s.substring(b+1).trim()};
+        }
         int mid = s.length() / 2;
         int left = s.lastIndexOf(' ', mid);
         int right = s.indexOf(' ', mid + 1);
