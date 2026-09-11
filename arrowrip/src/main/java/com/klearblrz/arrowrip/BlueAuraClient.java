@@ -24,9 +24,11 @@ import java.io.InputStream;
 
 public final class BlueAuraClient implements ClientModInitializer {
     private static final String AURA_SOUND = "/assets/arrowrip/anime_aura_leaking_power.wav";
+    private static final String ANIME_VOICE = "/assets/arrowrip/anime_japanese_voice.wav";
     private static KeyBinding auraKey, bloodKey;
     private static boolean auraActive, bloodMode;
     private static Clip auraClip;
+    private static Clip voiceClip;
     private static int auraTicks, burstTicks;
 
     @Override
@@ -43,7 +45,10 @@ public final class BlueAuraClient implements ClientModInitializer {
                     bloodMode = false;
                     burstTicks = auraActive ? 18 : 0;
                     auraTicks = 0;
-                    if (auraActive) playAuraSound(); else stopAuraSound();
+                    if (auraActive) {
+                        playAuraSound();
+                        playAnimeVoice();
+                    } else stopAuraSound();
                     if (client.player != null) client.player.sendMessage(Text.literal(auraActive ? "Mavi Aura: AÇIK" : "Mavi Aura: KAPALI"), true);
                 }
                 while (bloodKey.wasPressed()) {
@@ -51,13 +56,17 @@ public final class BlueAuraClient implements ClientModInitializer {
                     auraActive = bloodMode;
                     burstTicks = bloodMode ? 18 : 0;
                     auraTicks = 0;
-                    if (bloodMode) playAuraSound(); else stopAuraSound();
+                    if (bloodMode) {
+                        playAuraSound();
+                        playAnimeVoice();
+                    } else stopAuraSound();
                     if (client.player != null) client.player.sendMessage(Text.literal(bloodMode ? "Kan Aura: AÇIK" : "Kan Aura: KAPALI"), true);
                 }
                 if (client.player == null || client.world == null) {
                     auraActive = false;
                     bloodMode = false;
                     stopAuraSound();
+                    stopAnimeVoice();
                     return;
                 }
                 if (auraActive) auraTicks++;
@@ -66,6 +75,7 @@ public final class BlueAuraClient implements ClientModInitializer {
                 auraActive = false;
                 bloodMode = false;
                 stopAuraSound();
+                stopAnimeVoice();
             }
         });
 
@@ -182,11 +192,37 @@ public final class BlueAuraClient implements ClientModInitializer {
         thread.start();
     }
 
+    private static void playAnimeVoice() {
+        stopAnimeVoice();
+        Thread thread = new Thread(() -> {
+            try (InputStream raw = BlueAuraClient.class.getResourceAsStream(ANIME_VOICE)) {
+                if (raw == null) return;
+                try (BufferedInputStream buffered = new BufferedInputStream(raw);
+                     AudioInputStream audio = AudioSystem.getAudioInputStream(buffered)) {
+                    Clip clip = AudioSystem.getClip();
+                    clip.open(audio);
+                    voiceClip = clip;
+                    clip.start();
+                }
+            } catch (Throwable ignored) { voiceClip = null; }
+        }, "ArrowRip-Anime-Voice");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
     private static void stopAuraSound() {
         try {
             Clip clip = auraClip;
             if (clip != null) { clip.stop(); clip.close(); }
         } catch (Throwable ignored) {}
         auraClip = null;
+    }
+
+    private static void stopAnimeVoice() {
+        try {
+            Clip clip = voiceClip;
+            if (clip != null) { clip.stop(); clip.close(); }
+        } catch (Throwable ignored) {}
+        voiceClip = null;
     }
 }
