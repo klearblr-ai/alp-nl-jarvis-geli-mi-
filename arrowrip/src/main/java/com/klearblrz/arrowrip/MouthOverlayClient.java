@@ -7,7 +7,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.util.math.MatrixStack;
@@ -34,7 +34,7 @@ public final class MouthOverlayClient implements ClientModInitializer {
         WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> {
             if (!enabled) return;
             try {
-                renderMouth(context.matrices(), context.consumers().getBuffer(RenderLayer.getEntityTranslucent(MOUTH)));
+                renderMouth(context.matrices(), context.consumers().getBuffer(RenderLayers.entityTranslucent(MOUTH)));
             } catch (Throwable ignored) {
                 // Cosmetic overlay must never crash the client.
             }
@@ -54,8 +54,6 @@ public final class MouthOverlayClient implements ClientModInitializer {
         matrices.push();
         matrices.translate(x, y, z);
         matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-client.player.getYaw()));
-
-        // Slightly in front of the face so it does not z-fight with the skin.
         matrices.translate(0.0, 0.0, -0.326);
         Matrix4f m = matrices.peek().getPositionMatrix();
 
