@@ -17,7 +17,8 @@
     "FullBodyActionStateMixin",
     "AIRigToggleVisibilityMixin",
     "CinematicCameraAIMixin",
-    "AllPlayersCombatAnimationMixin"
+    "AllPlayersCombatAnimationMixin",
+    "BedBreakAnimationMixin"
   ],
   "injectors": {
     "defaultRequire": 1
