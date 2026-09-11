@@ -18,7 +18,8 @@
     "AIRigToggleVisibilityMixin",
     "CinematicCameraAIMixin",
     "AllPlayersCombatAnimationMixin",
-    "BedBreakAnimationMixin"
+    "BedBreakAnimationMixin",
+    "LocomotionBridgePolishMixin"
   ],
   "injectors": {
     "defaultRequire": 1
