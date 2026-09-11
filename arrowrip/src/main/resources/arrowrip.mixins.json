@@ -13,6 +13,7 @@
     "AutoPvPAnimationMixin",
     "BlenderRigGeometryMixin",
     "BlenderRigAnimationMixin",
+    "AutoPlayFullBodyMixin",
     "AIRigToggleVisibilityMixin"
   ],
   "injectors": {
