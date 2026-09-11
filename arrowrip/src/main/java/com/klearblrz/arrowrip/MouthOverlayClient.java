@@ -9,17 +9,20 @@ import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.item.consume.UseAction;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 public final class MouthOverlayClient implements ClientModInitializer {
     private static final Identifier MOUTH = Identifier.of("arrowrip", "textures/mouth_grin.png");
+    private static final Identifier BLOODY_MOUTH = Identifier.of("arrowrip", "textures/mouth_grin_bloody.png");
     private static KeyBinding mouthKey, upKey, downKey, leftKey, rightKey, biggerKey, smallerKey, resetKey;
     private static boolean enabled = true;
     private static int offsetX = 0;
     private static int offsetY = 0;
     private static float scale = 1.0f;
+    private static int bloodyTicks = 0;
 
     @Override
     public void onInitializeClient() {
@@ -33,6 +36,21 @@ public final class MouthOverlayClient implements ClientModInitializer {
         resetKey = key("key.arrowrip.mouth_reset", GLFW.GLFW_KEY_HOME);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.player != null) {
+                try {
+                    if (client.player.isUsingItem()
+                            && client.player.getActiveItem().getUseAction() == UseAction.EAT) {
+                        bloodyTicks = 100;
+                    } else if (bloodyTicks > 0) {
+                        bloodyTicks--;
+                    }
+                } catch (Throwable ignored) {
+                    if (bloodyTicks > 0) bloodyTicks--;
+                }
+            } else {
+                bloodyTicks = 0;
+            }
+
             while (mouthKey.wasPressed()) {
                 enabled = !enabled;
                 if (client.player != null) client.player.sendMessage(Text.literal(enabled ? "Ağız: AÇIK" : "Ağız: KAPALI"), true);
@@ -69,7 +87,8 @@ public final class MouthOverlayClient implements ClientModInitializer {
             int h = Math.max(12, Math.round(34 * scale));
             int x = sw / 2 - w / 2 + offsetX;
             int y = sh / 2 - 67 + offsetY;
-            ctx.drawTexture(RenderPipelines.GUI_TEXTURED, MOUTH, x, y, 0.0f, 0.0f, w, h, 512, 256);
+            Identifier texture = bloodyTicks > 0 ? BLOODY_MOUTH : MOUTH;
+            ctx.drawTexture(RenderPipelines.GUI_TEXTURED, texture, x, y, 0.0f, 0.0f, w, h, 512, 256);
         } catch (Throwable ignored) {
             enabled = false;
         }
