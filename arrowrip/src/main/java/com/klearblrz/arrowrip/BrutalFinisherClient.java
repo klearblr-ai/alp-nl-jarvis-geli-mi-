@@ -14,6 +14,13 @@ import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public final class BrutalFinisherClient implements ClientModInitializer {
     private static KeyBinding menuKey;
@@ -26,15 +33,16 @@ public final class BrutalFinisherClient implements ClientModInitializer {
             new Track("RAGE QUIT", "/assets/arrowrip/rage_quit.mp3", 117.45)
     };
 
-    // Values translated from the uploaded .viz preset:
-    // Spectrum, 173 samples, 45-300 Hz, mirrored, smooth=1,
-    // circular path, red/black line layers + white bars and beat RGB split.
-    private static final int VIZ_SAMPLES = 173;
-    private static final double VIZ_LOW_HZ = 45.0;
-    private static final double VIZ_HIGH_HZ = 300.0;
-    private static final double VIZ_RED_MULT = 2.0;
-    private static final double VIZ_BLACK_MULT = 1.9;
-    private static final double VIZ_BAR_MULT = 1.5;
+    // Fallback values. The final JAR contains the user's .viz and these are replaced
+    // at runtime by values read directly from visualizer_88.json inside that .viz ZIP.
+    private static int vizSamples = 173;
+    private static double vizLowHz = 45.0;
+    private static double vizHighHz = 300.0;
+    private static double vizRedMult = 2.0;
+    private static double vizBlackMult = 1.9;
+    private static double vizBarMult = 1.5;
+    private static boolean vizMirror = true;
+    private static boolean vizPresetLoaded;
 
     private static int selectedTrack = 0;
     private static volatile Player musicPlayer;
@@ -49,6 +57,8 @@ public final class BrutalFinisherClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        loadVizPresetResource();
+
         menuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.arrowrip.music_menu", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_H, ArrowRipClient.CATEGORY));
 
@@ -83,6 +93,53 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         HudRenderCallback.EVENT.register((drawContext, tickCounter) -> renderMusicHud(drawContext));
     }
 
+    private static void loadVizPresetResource() {
+        try (InputStream raw = BrutalFinisherClient.class.getResourceAsStream("/assets/arrowrip/next_level_phonk.viz")) {
+            if (raw == null) return;
+            try (ZipInputStream zip = new ZipInputStream(raw)) {
+                ZipEntry entry;
+                while ((entry = zip.getNextEntry()) != null) {
+                    if (!"visualizer_88.json".equals(entry.getName())) continue;
+                    String json = new String(zip.readAllBytes(), StandardCharsets.UTF_8);
+
+                    vizSamples = Math.max(24, Math.min(512, (int)Math.round(readNumber(json, "sampleOutCount", vizSamples))));
+                    vizLowHz = readNumber(json, "lowerHz", vizLowHz);
+                    vizHighHz = readNumber(json, "higherHz", vizHighHz);
+                    vizMirror = readNumber(json, "mirrorSamples", vizMirror ? 1 : 0) >= 0.5;
+
+                    List<Double> multipliers = readNumbers(json, "barHeightMultiplier");
+                    if (multipliers.size() > 0) vizRedMult = multipliers.get(0);
+                    if (multipliers.size() > 1) vizBlackMult = multipliers.get(1);
+                    if (multipliers.size() > 2) vizBarMult = multipliers.get(2);
+
+                    vizPresetLoaded = true;
+                    break;
+                }
+            }
+        } catch (Exception ignored) {
+            vizPresetLoaded = false;
+        }
+    }
+
+    private static double readNumber(String json, String key, double fallback) {
+        Pattern p = Pattern.compile("\\\"" + Pattern.quote(key) + "\\\"\\s*:\\s*\\{.*?\\\"v\\\"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)", Pattern.DOTALL);
+        Matcher m = p.matcher(json);
+        if (!m.find()) return fallback;
+        try { return Double.parseDouble(m.group(1)); }
+        catch (Exception ignored) { return fallback; }
+    }
+
+    private static List<Double> readNumbers(String json, String key) {
+        List<Double> out = new ArrayList<>();
+        Pattern p = Pattern.compile("\\\"" + Pattern.quote(key) + "\\\"\\s*:\\s*\\{.*?\\\"v\\\"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)", Pattern.DOTALL);
+        Matcher m = p.matcher(json);
+        while (m.find() && out.size() < 8) {
+            try { out.add(Double.parseDouble(m.group(1))); }
+            catch (Exception ignored) {}
+        }
+        return out;
+    }
+
     private static int chooseAutoTrack(PlayerEntity p) {
         float hp = p.getHealth() / Math.max(1.0f, p.getMaxHealth());
         if (hp <= 0.25f) return 4;
@@ -108,7 +165,7 @@ public final class BrutalFinisherClient implements ClientModInitializer {
 
         ctx.fill(panelX - 4, panelY - 4, w - 4, panelY + panelH, 0x8A050000);
         ctx.fill(panelX - 2, panelY - 2, w - 6, panelY, 0xDD8A0008);
-        ctx.drawTextWithShadow(mc.textRenderer, Text.literal("VIZ • " + track.name), panelX + 4, panelY + 5, 0xFFFF7777);
+        ctx.drawTextWithShadow(mc.textRenderer, Text.literal((vizPresetLoaded ? "VIZ • " : "VIZ* • ") + track.name), panelX + 4, panelY + 5, 0xFFFF7777);
 
         if (visualizerEnabled) renderUploadedVizPreset(ctx, panelX, panelY, track);
 
@@ -128,49 +185,42 @@ public final class BrutalFinisherClient implements ClientModInitializer {
         double beatPhase = (playbackTicks % beatTicks) / beatTicks;
         double beat = Math.pow(Math.max(0.0, Math.sin(beatPhase * Math.PI)), 1.6);
 
-        // The preset uses 173 mirrored spectrum samples. We preserve that sampling count,
-        // but synthesize the per-band amplitudes from time/beat because JLayer playback
-        // does not expose PCM FFT frames directly.
-        for (int i = 0; i < VIZ_SAMPLES; i++) {
-            double mirrored = i <= VIZ_SAMPLES / 2
-                    ? i / (VIZ_SAMPLES / 2.0)
-                    : (VIZ_SAMPLES - 1 - i) / (VIZ_SAMPLES / 2.0);
+        for (int i = 0; i < vizSamples; i++) {
+            double samplePosition = i / Math.max(1.0, vizSamples - 1.0);
+            double mirrored = vizMirror
+                    ? (samplePosition <= 0.5 ? samplePosition * 2.0 : (1.0 - samplePosition) * 2.0)
+                    : samplePosition;
 
-            double hz = VIZ_LOW_HZ + (VIZ_HIGH_HZ - VIZ_LOW_HZ) * Math.max(0.0, mirrored);
+            double hz = vizLowHz + (vizHighHz - vizLowHz) * Math.max(0.0, mirrored);
             double band = 0.50
                     + 0.23 * Math.sin(playbackTicks * 0.19 + i * 0.31 + hz * 0.014)
                     + 0.17 * Math.sin(playbackTicks * 0.11 + i * 0.73)
                     + 0.30 * beat;
             band = clamp01(band);
 
-            double angle = (Math.PI * 2.0 * i / VIZ_SAMPLES) - Math.PI / 2.0;
+            double angle = (Math.PI * 2.0 * i / vizSamples) - Math.PI / 2.0;
 
-            // Layer 1 from preset: red circular line, multiplier 2.0.
-            double redR = baseRadius + band * 8.0 * VIZ_RED_MULT;
+            double redR = baseRadius + band * 8.0 * vizRedMult;
             int rx = (int)Math.round(cx + Math.cos(angle) * redR);
             int ry = (int)Math.round(cy + Math.sin(angle) * redR);
             putPixel(ctx, rx, ry, 0xF0FF1018);
 
-            // Beat RGB split approximation from the preset.
             if (beat > 0.42 && (i & 1) == 0) {
                 putPixel(ctx, rx + 1, ry, 0x99FF0000);
                 putPixel(ctx, rx - 1, ry + 1, 0x9960AAFF);
             }
 
-            // Layer 2 from preset: dark/black line, multiplier 1.9.
-            double blackR = baseRadius + band * 7.2 * VIZ_BLACK_MULT;
+            double blackR = baseRadius + band * 7.2 * vizBlackMult;
             int bx = (int)Math.round(cx + Math.cos(angle) * blackR);
             int by = (int)Math.round(cy + Math.sin(angle) * blackR);
             putPixel(ctx, bx, by, 0xE8000000);
 
-            // Layer 3 from preset: white circular bars, multiplier 1.5.
             if (i % 3 == 0) {
                 double inner = baseRadius - 1.0;
-                double outer = baseRadius + 4.0 + band * 8.0 * VIZ_BAR_MULT;
+                double outer = baseRadius + 4.0 + band * 8.0 * vizBarMult;
                 drawRadialLine(ctx, cx, cy, angle, inner, outer, 0xEEFFFFFF);
             }
 
-            // Preset particle/vortex feel: small beat-driven sparks around the circle.
             if (beat > 0.55 && i % 19 == (playbackTicks % 19)) {
                 double sparkR = baseRadius + 18.0 + band * 7.0;
                 int sx = (int)Math.round(cx + Math.cos(angle + playbackTicks * 0.015) * sparkR);
@@ -179,7 +229,6 @@ public final class BrutalFinisherClient implements ClientModInitializer {
             }
         }
 
-        // Thin inner circle and a subtle beat pulse, matching the preset's central ring feel.
         drawCircle(ctx, cx, cy, (int)Math.round(baseRadius - 2 + beat * 2), 0xD0FFFFFF);
         if (beat > 0.62) drawCircle(ctx, cx, cy, (int)Math.round(baseRadius + 3 + beat * 4), 0x70FF2020);
     }
