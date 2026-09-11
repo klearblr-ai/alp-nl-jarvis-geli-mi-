@@ -10,7 +10,9 @@
     "FingerGeometryMixin",
     "FingerAnimationMixin",
     "FistNeckSceneMixin",
-    "AutoPvPAnimationMixin"
+    "AutoPvPAnimationMixin",
+    "BlenderRigGeometryMixin",
+    "BlenderRigAnimationMixin"
   ],
   "injectors": {
     "defaultRequire": 1
