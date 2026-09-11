@@ -16,39 +16,41 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class JapaneseVoiceClient implements ClientModInitializer {
-    private static final String[] LINES = {
-            "Nani?!",
-            "Yamero!",
-            "Ikuzo!",
-            "Yare yare...",
-            "Mada mada!",
-            "Sugoi!",
-            "Nanda?!",
-            "Kamuda!",
-            "Omae wa mou shindeiru!",
-            "Koko de owari da!",
-            "Ore wa mada tomaranai!",
-            "Kore ga ore no chikara da!",
-            "Kisama... koko made da!",
-            "Mada owatte nai zo!",
-            "Zetsubou shiro... kore de saigo da!",
-            "Ore no subete o misete yaru!",
-            "Ore wa... nanda da... KAMUDAAAAAAAAAAAAAAAAAAA!",
-            "Kore wa... nan da... kono chikara wa... mada owattenaiiiii!",
-            "Omae... kikoeru ka... ore no koe ga... KAMUDAAAAAAAAAAAAA!",
-            "Yare yare... koko made ka... iya... mada da... MADA DAAAAAAAA!"
+    private static final String[] BASE_LINES = {
+            "Nani?!", "Yamero!", "Ikuzo!", "Yare yare...", "Mada mada!", "Sugoi!", "Nanda?!", "Kamuda!",
+            "Omae wa mou shindeiru!", "Koko de owari da!", "Ore wa mada tomaranai!", "Kore ga ore no chikara da!",
+            "Kisama... koko made da!", "Mada owatte nai zo!", "Zetsubou shiro... kore de saigo da!", "Ore no subete o misete yaru!",
+            "Ore wa... nanda da... KAMUDAAAAAAAAAAAAAAAAAAA!", "Kore wa... nan da... kono chikara wa... mada owattenaiiiii!",
+            "Omae... kikoeru ka... ore no koe ga... KAMUDAAAAAAAAAAAAA!", "Yare yare... koko made ka... iya... mada da... MADA DAAAAAAAA!"
     };
 
-    private static final String[] SOUNDS = {
+    private static final String[] BASE_SOUNDS = {
             "voice_nani", "voice_yamero", "voice_ikuzo", "voice_yareyare",
             "voice_madamada", "voice_sugoi", "voice_nanda", "voice_kamuda",
             "voice_omae_shindeiru", "voice_koko_owari", "voice_ore_tomaranai", "voice_kore_chikara",
             "voice_kisama_koko", "voice_mada_owatte", "voice_zetsubou_saigo", "voice_subete_misete",
             "voice_ore_nanda_kamuda", "voice_kore_wa_nan_da", "voice_omae_kikoeru", "voice_saigo_bakuhatsu"
     };
+
+    private static final String[] EXTRA_STARTS = {
+            "Ore wa", "Omae wa", "Kore wa", "Nanda", "Yare yare", "Mada mada",
+            "Kisama", "Ikuzo", "Yamero", "Sugoi", "Koko de", "Zetsubou"
+    };
+    private static final String[] EXTRA_MIDDLES = {
+            "mada tomaranai", "kono chikara", "nan da", "kikoeru ka", "owatte nai", "saigo da",
+            "subete o misete yaru", "koko made da", "mou shindeiru", "ore no koe ga", "mada da", "doushite"
+    };
+    private static final String[] EXTRA_ENDS = {
+            "Kamuda", "Nandaaa", "Ikuzooo", "Yamerooo", "Madaaaa", "Chikaraaa",
+            "Owari daaa", "Kisamaaa", "Sugoiii", "Zetsubouuu", "Ore waaaa", "Kore daaaa"
+    };
+
+    private static final int EXTRA_COUNT = 1031;
+    private static final int TOTAL_COUNT = BASE_LINES.length + EXTRA_COUNT;
 
     private static KeyBinding voiceKey;
     private static KeyBinding chatModeKey;
@@ -83,20 +85,15 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
         if (client == null || client.player == null) return;
 
         int idx;
-        if (LINES.length <= 1) idx = 0;
-        else {
-            do idx = ThreadLocalRandom.current().nextInt(LINES.length);
-            while (idx == lastIndex);
-        }
+        do idx = ThreadLocalRandom.current().nextInt(TOTAL_COUNT);
+        while (idx == lastIndex && TOTAL_COUNT > 1);
         lastIndex = idx;
 
-        subtitle = LINES[idx];
-        subtitleTicks = subtitle.length() > 38 ? 170 : (subtitle.length() > 24 ? 122 : 84);
+        subtitle = lineFor(idx);
+        subtitleTicks = subtitle.length() > 50 ? 190 : (subtitle.length() > 32 ? 155 : 100);
 
         PlayerEntity target = null;
-        if (client.targetedEntity instanceof PlayerEntity looked && looked != client.player) {
-            target = looked;
-        }
+        if (client.targetedEntity instanceof PlayerEntity looked && looked != client.player) target = looked;
 
         boolean targetSpeaks = target != null && ThreadLocalRandom.current().nextBoolean();
         PlayerEntity speaker = targetSpeaks ? target : client.player;
@@ -107,12 +104,31 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
         }
 
         try {
-            Identifier id = Identifier.of("arrowrip", SOUNDS[idx]);
+            Identifier id = Identifier.of("arrowrip", soundFor(idx));
             SoundEvent event = SoundEvent.of(id);
             client.getSoundManager().play(new EntityTrackingSoundInstance(
                     event, SoundCategory.MASTER, 1.0f, 0.88f, speaker, System.nanoTime()));
         } catch (Throwable ignored) {
         }
+    }
+
+    private static String lineFor(int idx) {
+        if (idx < BASE_LINES.length) return BASE_LINES[idx];
+        return buildExtraLine(idx - BASE_LINES.length);
+    }
+
+    private static String soundFor(int idx) {
+        if (idx < BASE_SOUNDS.length) return BASE_SOUNDS[idx];
+        return String.format(Locale.ROOT, "voice_extra_%04d", idx - BASE_LINES.length);
+    }
+
+    private static String buildExtraLine(int i) {
+        String a = EXTRA_STARTS[i % EXTRA_STARTS.length];
+        String b = EXTRA_MIDDLES[(i / EXTRA_STARTS.length) % EXTRA_MIDDLES.length];
+        String c = EXTRA_ENDS[(i / (EXTRA_STARTS.length * EXTRA_MIDDLES.length)) % EXTRA_ENDS.length];
+        if (i % 17 == 0) c = c.toUpperCase(Locale.ROOT) + "AAAAAAAAAAAA";
+        else if (i % 11 == 0) c = c + "aaaaaaa";
+        return a + "... " + b + "... " + c + "!";
     }
 
     private static void renderSubtitle(DrawContext ctx) {
