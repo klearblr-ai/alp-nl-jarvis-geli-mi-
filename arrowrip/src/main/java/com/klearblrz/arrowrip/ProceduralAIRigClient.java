@@ -13,7 +13,7 @@ import net.minecraft.util.math.MathHelper;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * Lightweight client-side motion brain. It does not replay authored animation clips:
+ * Automatic client-side full-body motion brain. It does not replay one fixed clip:
  * every tick it derives continuous motion intent from movement, combat, aim and health.
  */
 public final class ProceduralAIRigClient implements ClientModInitializer {
@@ -43,7 +43,7 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
                 initialized = false;
                 if (client.player != null) {
                     client.player.sendMessage(Text.literal(
-                            enabled ? "AI FULL BODY: AÇIK" : "AI FULL BODY: KAPALI"), true);
+                            enabled ? "AUTO PLAY FULL BODY: AÇIK" : "AUTO PLAY FULL BODY: KAPALI"), true);
                 }
             }
             tick(client);
