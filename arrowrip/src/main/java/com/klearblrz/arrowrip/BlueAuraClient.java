@@ -43,23 +43,19 @@ public final class BlueAuraClient implements ClientModInitializer {
                 while (auraKey.wasPressed()) {
                     auraActive = !auraActive;
                     bloodMode = false;
-                    burstTicks = auraActive ? 18 : 0;
+                    burstTicks = auraActive ? 12 : 0;
                     auraTicks = 0;
-                    if (auraActive) {
-                        playAuraSound();
-                        playAnimeVoice();
-                    } else stopAuraSound();
+                    if (auraActive) { playAuraSound(); playAnimeVoice(); }
+                    else stopAuraSound();
                     if (client.player != null) client.player.sendMessage(Text.literal(auraActive ? "Mavi Aura: AÇIK" : "Mavi Aura: KAPALI"), true);
                 }
                 while (bloodKey.wasPressed()) {
                     bloodMode = !bloodMode;
                     auraActive = bloodMode;
-                    burstTicks = bloodMode ? 18 : 0;
+                    burstTicks = bloodMode ? 12 : 0;
                     auraTicks = 0;
-                    if (bloodMode) {
-                        playAuraSound();
-                        playAnimeVoice();
-                    } else stopAuraSound();
+                    if (bloodMode) { playAuraSound(); playAnimeVoice(); }
+                    else stopAuraSound();
                     if (client.player != null) client.player.sendMessage(Text.literal(bloodMode ? "Kan Aura: AÇIK" : "Kan Aura: KAPALI"), true);
                 }
                 if (client.player == null || client.world == null) {
@@ -101,34 +97,36 @@ public final class BlueAuraClient implements ClientModInitializer {
         float r = bloodMode ? 0.78f : 0.03f;
         float g = bloodMode ? 0.015f : 0.48f;
         float b = bloodMode ? 0.02f : 1.00f;
-        float pulse = (float)(0.5 + 0.5 * Math.sin(auraTicks * 0.34));
+        float pulse = (float)(0.5 + 0.5 * Math.sin(auraTicks * 0.28));
 
-        for (int layer = 0; layer < 5; layer++) {
-            double e = 0.018 + layer * 0.025 + pulse * 0.012;
-            float alpha = Math.max(0.035f, 0.18f - layer * 0.028f);
+        for (int layer = 0; layer < 3; layer++) {
+            double e = 0.018 + layer * 0.038 + pulse * 0.010;
+            float alpha = Math.max(0.045f, 0.17f - layer * 0.045f);
             drawBody(fill, matrices, px, py, pz, e, r, g, b, alpha);
         }
 
-        drawBody(fill, matrices, px, py, pz, 0.006 + pulse * 0.008,
+        drawBody(fill, matrices, px, py, pz, 0.008 + pulse * 0.006,
                 bloodMode ? 1.0f : 0.40f,
                 bloodMode ? 0.08f : 0.82f,
                 bloodMode ? 0.08f : 1.0f,
-                0.22f + pulse * 0.08f);
+                0.20f + pulse * 0.06f);
 
         if (burstTicks > 0) {
-            double t = (18 - burstTicks) / 18.0;
-            double e = 0.10 + t * 0.70;
-            float a = (float)((1.0 - t) * 0.24);
+            double t = (12 - burstTicks) / 12.0;
+            double e = 0.10 + t * 0.55;
+            float a = (float)((1.0 - t) * 0.20);
             box(matrices, fill,
                     px - 0.62 - e, py - 0.10 - e, pz - 0.38 - e,
                     px + 0.62 + e, py + 2.06 + e, pz + 0.38 + e,
                     r, g, b, a);
         }
 
-        int color = argb(0.78f, Math.min(1f,r+0.18f), Math.min(1f,g+0.18f), Math.min(1f,b+0.18f));
-        VertexRendering.drawOutline(matrices, lines,
-                net.minecraft.util.shape.VoxelShapes.cuboid(-0.68, -0.08, -0.42, 0.68, 2.10, 0.42),
-                px, py, pz, color, 1.7f);
+        if ((auraTicks & 1) == 0) {
+            int color = argb(0.68f, Math.min(1f,r+0.18f), Math.min(1f,g+0.18f), Math.min(1f,b+0.18f));
+            VertexRendering.drawOutline(matrices, lines,
+                    net.minecraft.util.shape.VoxelShapes.cuboid(-0.68, -0.08, -0.42, 0.68, 2.10, 0.42),
+                    px, py, pz, color, 1.4f);
+        }
     }
 
     private static void drawBody(VertexConsumer fill, MatrixStack matrices,
