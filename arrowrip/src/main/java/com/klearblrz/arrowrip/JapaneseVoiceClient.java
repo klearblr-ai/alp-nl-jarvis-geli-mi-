@@ -99,6 +99,9 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
         PlayerEntity speaker = targetSpeaks ? target : client.player;
         subtitleTarget = speaker.getName().getString();
 
+        // Every single line, including all 1031 generated ones, starts a moving cinematic emote.
+        AnimeAnimationClient.triggerSpeechEmote(idx, speaker.getId(), subtitleTicks);
+
         if (chatMode && client.inGameHud != null) {
             client.inGameHud.getChatHud().addMessage(Text.literal("[" + subtitleTarget + "] " + subtitle));
         }
