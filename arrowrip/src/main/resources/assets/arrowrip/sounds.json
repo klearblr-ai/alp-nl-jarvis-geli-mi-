@@ -7,5 +7,13 @@
   "voice_sugoi": {"sounds": ["arrowrip:voice_sugoi"]},
   "voice_nanda": {"sounds": ["arrowrip:voice_nanda"]},
   "voice_kamuda": {"sounds": ["arrowrip:voice_kamuda"]},
+  "voice_omae_shindeiru": {"sounds": ["arrowrip:voice_omae_shindeiru"]},
+  "voice_koko_owari": {"sounds": ["arrowrip:voice_koko_owari"]},
+  "voice_ore_tomaranai": {"sounds": ["arrowrip:voice_ore_tomaranai"]},
+  "voice_kore_chikara": {"sounds": ["arrowrip:voice_kore_chikara"]},
+  "voice_kisama_koko": {"sounds": ["arrowrip:voice_kisama_koko"]},
+  "voice_mada_owatte": {"sounds": ["arrowrip:voice_mada_owatte"]},
+  "voice_zetsubou_saigo": {"sounds": ["arrowrip:voice_zetsubou_saigo"]},
+  "voice_subete_misete": {"sounds": ["arrowrip:voice_subete_misete"]},
   "ultimate_scream": {"sounds": ["arrowrip:ultimate_scream"]}
 }
