@@ -116,9 +116,20 @@ public final class ArrowRipClient implements ClientModInitializer {
     }
 
     private static void dropBloodyArrow(MinecraftClient c,PlayerEntity p){
-        Vec3d l=p.getRotationVec(1f); double x=p.getX()+l.x*.28,y=p.getY()+.95,z=p.getZ()+l.z*.28;
-        ItemEntity a=new ItemEntity(c.world,x,y,z,new ItemStack(Items.ARROW)); a.setPickupDelayInfinite(); a.setVelocity(l.x*.08,.12,l.z*.08); c.world.addEntity(a);
-        groundBloodX=x+l.x*.18;groundBloodY=p.getY()+.035;groundBloodZ=z+l.z*.18;groundBloodTicks=240;spawnGroundBlood(c);
+        Vec3d l=p.getRotationVec(1f);
+        double x=p.getX()+l.x*.42;
+        double y=p.getY()+.055;
+        double z=p.getZ()+l.z*.42;
+        ItemEntity a=new ItemEntity(c.world,x,y,z,new ItemStack(Items.ARROW));
+        a.setPickupDelayInfinite();
+        a.setNoGravity(true);
+        a.setVelocity(Vec3d.ZERO);
+        a.setYaw((float)Math.toDegrees(Math.atan2(-l.x,l.z)));
+        a.setPitch(90.0f);
+        c.world.addEntity(a);
+        groundBloodX=x;groundBloodY=p.getY()+.025;groundBloodZ=z;groundBloodTicks=240;
+        for(int i=0;i<14;i++) c.world.addParticleClient(i%3==0?DARK_BLOOD:BLOOD,x+(c.world.random.nextDouble()-.5)*.16,y+.02,z+(c.world.random.nextDouble()-.5)*.16,0,-.01,0);
+        spawnGroundBlood(c);
     }
 
     private static void spawnGroundBlood(MinecraftClient c){int n=groundBloodTicks>180?5:2;for(int i=0;i<n;i++){double a=c.world.random.nextDouble()*Math.PI*2,r=c.world.random.nextDouble()*.38;c.world.addParticleClient(i%3==0?DARK_BLOOD:BLOOD,groundBloodX+Math.cos(a)*r,groundBloodY,groundBloodZ+Math.sin(a)*r,0,.001,0);}}
