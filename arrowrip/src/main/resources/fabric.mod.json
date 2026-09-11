@@ -3,10 +3,10 @@
   "id": "arrowrip",
   "version": "${version}",
   "name": "Arrow Rip",
-  "description": "Client-side arrow pulling animation, blood droplets, demon bite and blood bending effects.",
+  "description": "Client-side arrow pulling animation, blood droplets, demon bite, blood bending and rhythm finisher effects.",
   "authors": ["klearblrZ + OpenAI"],
   "environment": "client",
-  "entrypoints": {"client": ["com.klearblrz.arrowrip.ArrowRipClient", "com.klearblrz.arrowrip.BloodBendingClient"]},
+  "entrypoints": {"client": ["com.klearblrz.arrowrip.ArrowRipClient", "com.klearblrz.arrowrip.BloodBendingClient", "com.klearblrz.arrowrip.BrutalFinisherClient"]},
   "depends": {
     "fabricloader": ">=0.18.4",
     "minecraft": "=1.21.11",
