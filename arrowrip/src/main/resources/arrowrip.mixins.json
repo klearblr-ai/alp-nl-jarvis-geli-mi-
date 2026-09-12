@@ -19,7 +19,8 @@
     "CinematicCameraAIMixin",
     "AllPlayersCombatAnimationMixin",
     "BedBreakAnimationMixin",
-    "LocomotionBridgePolishMixin"
+    "LocomotionBridgePolishMixin",
+    "G17PoseMixin"
   ],
   "injectors": {
     "defaultRequire": 1
