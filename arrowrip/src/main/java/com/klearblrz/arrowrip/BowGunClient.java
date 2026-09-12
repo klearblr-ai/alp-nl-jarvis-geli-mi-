@@ -16,7 +16,6 @@ public final class BowGunClient implements ClientModInitializer {
     private static KeyBinding inspectKey;
     private static KeyBinding reloadKey;
     private static final int MAG_SIZE = 19;
-    // Three ticks is the shortest useful vanilla-server bow release window; client visuals become full immediately.
     private static final int FIRE_TICKS = 3;
     private static final int RELOAD_TICKS_MAX = 20;
     private static final int INSPECT_TICKS_MAX = 52;
@@ -27,6 +26,7 @@ public final class BowGunClient implements ClientModInitializer {
     private static int recoilTicks;
     private static int restartDelay;
     private static boolean releasedThisUse;
+    private static boolean reloadStopSent;
 
     @Override
     public void onInitializeClient() {
@@ -70,13 +70,17 @@ public final class BowGunClient implements ClientModInitializer {
         if (restartDelay > 0) restartDelay--;
 
         if (reloadTicks > 0) {
-            reloadTicks--;
-            if (client.player.isUsingItem() && client.interactionManager != null) {
+            // Stop vanilla bow use only once. Re-sending this every tick caused the visible hitch/stutter.
+            if (!reloadStopSent && client.player.isUsingItem() && client.interactionManager != null) {
                 client.interactionManager.stopUsingItem(client.player);
+                reloadStopSent = true;
             }
+            reloadTicks--;
             if (reloadTicks == 0) {
                 magazine = MAG_SIZE;
                 releasedThisUse = false;
+                reloadStopSent = false;
+                restartDelay = 2;
                 client.player.sendMessage(Text.literal("SANAL ŞARJÖR 19/19"), true);
             }
             return;
@@ -89,15 +93,15 @@ public final class BowGunClient implements ClientModInitializer {
                 releasedThisUse = true;
                 recoilTicks = 6;
                 magazine = Math.max(0, magazine - 1);
-                restartDelay = 1;
+                restartDelay = 2;
                 if (magazine <= 0) startReload(client);
             }
         } else {
             releasedThisUse = false;
         }
 
-        // Holding use starts the next virtual round automatically, like a rapid semi-auto gun.
-        if (client.options.useKey.isPressed() && restartDelay <= 0 && reloadTicks <= 0
+        // A two-tick settle avoids stop/start spam and makes repeated shots much smoother.
+        if (client.currentScreen == null && client.options.useKey.isPressed() && restartDelay <= 0 && reloadTicks <= 0
                 && !client.player.isUsingItem() && client.interactionManager != null) {
             client.interactionManager.interactItem(client.player, Hand.MAIN_HAND);
         }
@@ -108,6 +112,7 @@ public final class BowGunClient implements ClientModInitializer {
         inspectTicks = 0;
         recoilTicks = 0;
         releasedThisUse = true;
+        reloadStopSent = false;
         if (client.player != null) client.player.sendMessage(Text.literal("ŞARJÖR DEĞİŞTİRİLİYOR…"), true);
     }
 
@@ -118,6 +123,7 @@ public final class BowGunClient implements ClientModInitializer {
         recoilTicks = 0;
         restartDelay = 0;
         releasedThisUse = false;
+        reloadStopSent = false;
     }
 
     public static float recoilProgress(float tickDelta) {
