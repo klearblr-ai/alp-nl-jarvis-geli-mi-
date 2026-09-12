@@ -22,7 +22,10 @@
     "BedBreakAnimationMixin",
     "LocomotionBridgePolishMixin",
     "G17PoseMixin",
-    "BowGunFirstPersonMixin"
+    "BowGunFirstPersonMixin",
+    "BowFastPullMixin",
+    "BowGunThirdPersonMixin",
+    "HandGripCorrectionMixin"
   ],
   "injectors": {
     "defaultRequire": 1
