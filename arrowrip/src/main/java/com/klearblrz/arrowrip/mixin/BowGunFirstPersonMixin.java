@@ -53,14 +53,13 @@ public abstract class BowGunFirstPersonMixin {
 
         matrices.push();
 
-        // Neutral handgun hold: compact, low-right, no vanilla string-pull animation.
-        matrices.translate(side * 0.54F, -0.43F + equipProgress * -0.18F, -0.82F);
+        // Stable grip: do not feed rapidly changing equipProgress into the base pose.
+        matrices.translate(side * 0.54F, -0.43F, -0.82F);
         matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-8.0F));
         matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(side * -20.0F));
         matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(side * -5.0F));
         matrices.scale(0.90F, 0.90F, 0.90F);
 
-        // Short slide/recoil impulse after every accepted local release.
         float recoil = BowGunClient.recoilProgress(tickProgress);
         if (recoil > 0.0F) {
             float kick = MathHelper.sin(recoil * (float)Math.PI);
@@ -69,7 +68,6 @@ public abstract class BowGunFirstPersonMixin {
             matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(side * 2.8F * kick));
         }
 
-        // Glock-style inspect: bring it close, show the side/top, then settle back into aim.
         float inspect = BowGunClient.inspectProgress(tickProgress);
         if (inspect > 0.0F) {
             float in = smooth(MathHelper.clamp(inspect / 0.22F, 0.0F, 1.0F));
@@ -82,14 +80,17 @@ public abstract class BowGunFirstPersonMixin {
             matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(side * (-18.0F * hold + 9.0F * MathHelper.sin(inspect * (float)Math.PI * 2.0F))));
         }
 
-        // Automatic virtual magazine change. No magazine item is created or consumed.
+        // Three clean reload phases: lower/eject -> return/seat -> short lock/slide motion.
         float reload = BowGunClient.reloadProgress(tickProgress);
         if (reload > 0.0F) {
-            float drop = MathHelper.sin(MathHelper.clamp(reload / 0.58F, 0.0F, 1.0F) * (float)Math.PI);
-            float seat = smooth(MathHelper.clamp((reload - 0.58F) / 0.42F, 0.0F, 1.0F));
-            matrices.translate(side * 0.08F * drop, 0.42F * drop - 0.15F * seat, 0.12F * drop);
-            matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(side * (38.0F * drop - 10.0F * seat)));
-            matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(26.0F * drop));
+            float lower = smooth(MathHelper.clamp(reload / 0.34F, 0.0F, 1.0F));
+            float back = smooth(MathHelper.clamp((reload - 0.34F) / 0.46F, 0.0F, 1.0F));
+            float lock = smooth(MathHelper.clamp((reload - 0.80F) / 0.20F, 0.0F, 1.0F));
+            float down = lower * (1.0F - back);
+
+            matrices.translate(side * 0.08F * down, 0.36F * down - 0.08F * back, 0.10F * down + 0.05F * lock);
+            matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(side * (32.0F * down - 7.0F * back)));
+            matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(22.0F * down - 7.0F * lock));
         }
 
         this.renderItem(
