@@ -11,12 +11,14 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
 import org.lwjgl.glfw.GLFW;
 
-/** Client-only bow-as-gun controller: fast release, virtual 19-round magazine, reload and inspect timelines. */
+/** Client-only bow-as-gun controller: rapid release, infinite virtual magazines, reload and inspect timelines. */
 public final class BowGunClient implements ClientModInitializer {
     private static KeyBinding inspectKey;
+    private static KeyBinding reloadKey;
     private static final int MAG_SIZE = 19;
-    private static final int FIRE_TICKS = 4;
-    private static final int RELOAD_TICKS_MAX = 16;
+    // Three ticks is the shortest useful vanilla-server bow release window; client visuals become full immediately.
+    private static final int FIRE_TICKS = 3;
+    private static final int RELOAD_TICKS_MAX = 20;
     private static final int INSPECT_TICKS_MAX = 52;
 
     private static int magazine = MAG_SIZE;
@@ -33,26 +35,34 @@ public final class BowGunClient implements ClientModInitializer {
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_I,
                 ArrowRipClient.CATEGORY));
+        reloadKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.arrowrip.bowgun_reload",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_H,
+                ArrowRipClient.CATEGORY));
         ClientTickEvents.END_CLIENT_TICK.register(BowGunClient::tick);
     }
 
     private static void tick(MinecraftClient client) {
         if (client.player == null || client.world == null) {
-            resetTransient();
+            resetAll();
             return;
         }
 
         boolean bow = client.player.getMainHandStack().isOf(Items.BOW);
         if (!bow) {
-            resetTransient();
+            resetAll();
             return;
         }
 
         while (inspectKey.wasPressed()) {
             if (reloadTicks <= 0) {
                 inspectTicks = INSPECT_TICKS_MAX;
-                client.player.sendMessage(Text.literal("Glock Inspect"), true);
+                client.player.sendMessage(Text.literal("Silah Inspect"), true);
             }
+        }
+        while (reloadKey.wasPressed()) {
+            if (reloadTicks <= 0 && magazine < MAG_SIZE) startReload(client);
         }
 
         if (inspectTicks > 0) inspectTicks--;
@@ -67,37 +77,42 @@ public final class BowGunClient implements ClientModInitializer {
             if (reloadTicks == 0) {
                 magazine = MAG_SIZE;
                 releasedThisUse = false;
+                client.player.sendMessage(Text.literal("SANAL ŞARJÖR 19/19"), true);
             }
             return;
         }
 
-        // Release a vanilla bow after a very short charge. Public servers still decide whether they accept the shot.
         if (client.player.isUsingItem() && client.player.getActiveItem().isOf(Items.BOW)) {
             int used = client.player.getActiveItem().getMaxUseTime(client.player) - client.player.getItemUseTimeLeft();
             if (used >= FIRE_TICKS && !releasedThisUse && client.interactionManager != null) {
                 client.interactionManager.stopUsingItem(client.player);
                 releasedThisUse = true;
-                recoilTicks = 5;
-                magazine--;
+                recoilTicks = 6;
+                magazine = Math.max(0, magazine - 1);
                 restartDelay = 1;
-                if (magazine <= 0) {
-                    magazine = 0;
-                    reloadTicks = RELOAD_TICKS_MAX;
-                    inspectTicks = 0;
-                }
+                if (magazine <= 0) startReload(client);
             }
         } else {
             releasedThisUse = false;
         }
 
-        // Holding use restarts the bow after each fast release, giving a semi/rapid gun feel.
+        // Holding use starts the next virtual round automatically, like a rapid semi-auto gun.
         if (client.options.useKey.isPressed() && restartDelay <= 0 && reloadTicks <= 0
                 && !client.player.isUsingItem() && client.interactionManager != null) {
             client.interactionManager.interactItem(client.player, Hand.MAIN_HAND);
         }
     }
 
-    private static void resetTransient() {
+    private static void startReload(MinecraftClient client) {
+        reloadTicks = RELOAD_TICKS_MAX;
+        inspectTicks = 0;
+        recoilTicks = 0;
+        releasedThisUse = true;
+        if (client.player != null) client.player.sendMessage(Text.literal("ŞARJÖR DEĞİŞTİRİLİYOR…"), true);
+    }
+
+    private static void resetAll() {
+        magazine = MAG_SIZE;
         reloadTicks = 0;
         inspectTicks = 0;
         recoilTicks = 0;
@@ -107,7 +122,7 @@ public final class BowGunClient implements ClientModInitializer {
 
     public static float recoilProgress(float tickDelta) {
         if (recoilTicks <= 0) return 0.0F;
-        float p = (recoilTicks - tickDelta) / 5.0F;
+        float p = (recoilTicks - tickDelta) / 6.0F;
         return Math.max(0.0F, Math.min(1.0F, p));
     }
 
