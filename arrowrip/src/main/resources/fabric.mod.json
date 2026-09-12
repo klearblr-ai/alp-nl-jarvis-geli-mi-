@@ -3,10 +3,10 @@
   "id": "arrowrip",
   "version": "${version}",
   "name": "Arrow Rip",
-  "description": "Client-side combat visuals, adaptive music, exact-beat VIZ HUD, anime movement/emotes, automatic PvP timelines, procedural AI full-body rig, bloody eating mouth, full-body aura, random Japanese voice lines and particleless blood ultimate.",
+  "description": "Client-side combat visuals, adaptive music, exact-beat VIZ HUD, anime movement/emotes, automatic PvP timelines, procedural AI full-body rig, G17-style bow visuals, bloody eating mouth, full-body aura, random Japanese voice lines and particleless blood ultimate.",
   "authors": ["klearblrZ + OpenAI"],
   "environment": "client",
-  "entrypoints": {"client": ["com.klearblrz.arrowrip.BloodUltimateClient", "com.klearblrz.arrowrip.ArrowRipClient", "com.klearblrz.arrowrip.BloodBendingClient", "com.klearblrz.arrowrip.BrutalFinisherClient", "com.klearblrz.arrowrip.ExactBeatVisualizerClient", "com.klearblrz.arrowrip.BlueAuraClient", "com.klearblrz.arrowrip.MouthOverlayClient", "com.klearblrz.arrowrip.JapaneseVoiceClient", "com.klearblrz.arrowrip.AnimeAnimationClient", "com.klearblrz.arrowrip.AutoPvPAnimationClient", "com.klearblrz.arrowrip.ProceduralAIRigClient"]},
+  "entrypoints": {"client": ["com.klearblrz.arrowrip.BloodUltimateClient", "com.klearblrz.arrowrip.ArrowRipClient", "com.klearblrz.arrowrip.BloodBendingClient", "com.klearblrz.arrowrip.BrutalFinisherClient", "com.klearblrz.arrowrip.ExactBeatVisualizerClient", "com.klearblrz.arrowrip.BlueAuraClient", "com.klearblrz.arrowrip.MouthOverlayClient", "com.klearblrz.arrowrip.JapaneseVoiceClient", "com.klearblrz.arrowrip.AnimeAnimationClient", "com.klearblrz.arrowrip.AutoPvPAnimationClient", "com.klearblrz.arrowrip.ProceduralAIRigClient", "com.klearblrz.arrowrip.G17Client"]},
   "mixins": ["arrowrip.mixins.json"],
   "depends": {
     "fabricloader": ">=0.18.4",
