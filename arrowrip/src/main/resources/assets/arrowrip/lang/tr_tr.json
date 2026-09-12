@@ -17,5 +17,14 @@
   "key.arrowrip.blood_bending": "Blood Bending",
   "key.arrowrip.blood_throw": "Kan Fırlatma",
   "key.arrowrip.bowgun_inspect": "Yay-Silah Inspect",
-  "key.arrowrip.bowgun_reload": "Sanal Şarjör Değiştir"
+  "key.arrowrip.bowgun_reload": "Sanal Şarjör Değiştir",
+  "key.arrowrip.bowgun_firemode": "Yay-Silah AUTO / TEK Ateş Modu",
+  "key.arrowrip.mouth": "Anime Ağız Aç/Kapat",
+  "key.arrowrip.mouth_up": "Ağız Yukarı",
+  "key.arrowrip.mouth_down": "Ağız Aşağı",
+  "key.arrowrip.mouth_left": "Ağız Sola",
+  "key.arrowrip.mouth_right": "Ağız Sağa",
+  "key.arrowrip.mouth_bigger": "Ağız Büyüt",
+  "key.arrowrip.mouth_smaller": "Ağız Küçült",
+  "key.arrowrip.mouth_reset": "Ağız Konumunu Sıfırla"
 }
