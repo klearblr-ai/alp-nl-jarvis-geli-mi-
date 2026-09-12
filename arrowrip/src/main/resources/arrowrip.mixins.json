@@ -25,7 +25,8 @@
     "BowGunFirstPersonMixin",
     "BowFastPullMixin",
     "BowGunThirdPersonMixin",
-    "HandGripCorrectionMixin"
+    "HandGripCorrectionMixin",
+    "HeldItemGripAnchorMixin"
   ],
   "injectors": {
     "defaultRequire": 1
