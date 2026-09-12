@@ -98,10 +98,12 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
             if (!finisherThrown && progress >= 0.58F && finisherTargetId >= 0) {
                 Entity entity = client.world.getEntityById(finisherTargetId);
                 if (entity instanceof PlayerEntity target && target != p) {
-                    Vec3d push = target.getPos().subtract(p.getPos());
-                    push = new Vec3d(push.x, 0.0, push.z);
-                    if (push.lengthSquared() < 0.0001) push = p.getRotationVec(1.0F);
-                    push = new Vec3d(push.x, 0.0, push.z).normalize();
+                    Vec3d push = new Vec3d(target.getX() - p.getX(), 0.0, target.getZ() - p.getZ());
+                    if (push.lengthSquared() < 0.0001) {
+                        Vec3d look = p.getRotationVec(1.0F);
+                        push = new Vec3d(look.x, 0.0, look.z);
+                    }
+                    push = push.normalize();
                     target.setVelocity(push.x * 2.35, 0.72, push.z * 2.35);
                     finisherThrown = true;
                     p.sendMessage(Text.literal("AUTO THROW • UZAĞA FIRLAT"), true);
