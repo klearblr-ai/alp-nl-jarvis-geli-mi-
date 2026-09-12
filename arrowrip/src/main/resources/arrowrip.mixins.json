@@ -9,6 +9,7 @@
     "ArmJointPolishMixin",
     "FingerGeometryMixin",
     "FingerAnimationMixin",
+    "FingerKnuckleMixin",
     "FistNeckSceneMixin",
     "AutoPvPAnimationMixin",
     "BlenderRigGeometryMixin",
