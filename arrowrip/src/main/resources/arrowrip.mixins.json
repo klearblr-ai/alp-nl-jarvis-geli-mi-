@@ -20,7 +20,8 @@
     "AllPlayersCombatAnimationMixin",
     "BedBreakAnimationMixin",
     "LocomotionBridgePolishMixin",
-    "G17PoseMixin"
+    "G17PoseMixin",
+    "BowGunFirstPersonMixin"
   ],
   "injectors": {
     "defaultRequire": 1
