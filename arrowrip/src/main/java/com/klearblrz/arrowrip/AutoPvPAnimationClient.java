@@ -6,12 +6,14 @@ import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.Perspective;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.BlockItem;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.text.Text;
 import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.math.Vec3d;
 
 public final class AutoPvPAnimationClient implements ClientModInitializer {
     private static int hurtTicks;
@@ -25,6 +27,7 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
     private static int finisherTicks;
     private static int finisherDuration = 38;
     private static int finisherTargetId = -1;
+    private static boolean finisherThrown;
     private static int attackSequence;
     private static float lastHealth = -1.0F;
     private static boolean lastGrounded = true;
@@ -85,10 +88,25 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
             } else {
                 if (attackSequence % 3 == 0) kickTicks = 15;
                 else punchTicks = 9;
+                float ratio = target.getHealth() / Math.max(1.0F, target.getMaxHealth());
+                if (ratio <= 0.34F && finisherTicks <= 0 && attackSequence % 4 == 0) startFinisher(client, target);
             }
         }
 
         if (finisherTicks > 0) {
+            float progress = getFinisherProgress();
+            if (!finisherThrown && progress >= 0.58F && finisherTargetId >= 0) {
+                Entity entity = client.world.getEntityById(finisherTargetId);
+                if (entity instanceof PlayerEntity target && target != p) {
+                    Vec3d push = target.getPos().subtract(p.getPos());
+                    push = new Vec3d(push.x, 0.0, push.z);
+                    if (push.lengthSquared() < 0.0001) push = p.getRotationVec(1.0F);
+                    push = new Vec3d(push.x, 0.0, push.z).normalize();
+                    target.setVelocity(push.x * 2.35, 0.72, push.z * 2.35);
+                    finisherThrown = true;
+                    p.sendMessage(Text.literal("AUTO THROW • UZAĞA FIRLAT"), true);
+                }
+            }
             finisherTicks--;
             if (finisherTicks == 0) endCinematic(client);
         }
@@ -108,6 +126,7 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
     private static void startFinisher(MinecraftClient client, PlayerEntity target) {
         finisherTicks = finisherDuration;
         finisherTargetId = target.getId();
+        finisherThrown = false;
         stabTicks = 0;
         kickTicks = 0;
         punchTicks = 0;
@@ -124,6 +143,7 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
 
     private static void endCinematic(MinecraftClient client) {
         finisherTargetId = -1;
+        finisherThrown = false;
         if (cinematicPerspective && savedPerspective != null) client.options.setPerspective(savedPerspective);
         cinematicPerspective = false;
         savedPerspective = null;
@@ -139,8 +159,8 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
         ctx.fill(0, h - bar, w, h, 0xEE000000);
 
         float p = getFinisherProgress();
-        if (p > 0.48F && p < 0.58F) {
-            int a = (int)(120 * (1.0F - Math.abs(0.53F - p) / 0.05F));
+        if (p > 0.48F && p < 0.62F) {
+            int a = (int)(120 * (1.0F - Math.abs(0.55F - p) / 0.07F));
             a = Math.max(0, Math.min(120, a));
             ctx.fill(0, bar, w, h - bar, (a << 24) | 0x00FFFFFF);
         }
@@ -149,6 +169,7 @@ public final class AutoPvPAnimationClient implements ClientModInitializer {
     private static void resetTransient() {
         hurtTicks = landingTicks = stabTicks = kickTicks = punchTicks = mineTicks = bedBreakTicks = placeTicks = finisherTicks = 0;
         finisherTargetId = -1;
+        finisherThrown = false;
         lastAttackDown = false;
         lastUseDown = false;
     }
