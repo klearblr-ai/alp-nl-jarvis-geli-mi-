@@ -13,6 +13,8 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 /** Automatic client-side full-body motion brain. */
 public final class ProceduralAIRigClient implements ClientModInitializer {
     private static KeyBinding toggleKey;
@@ -28,6 +30,8 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
     private static float bridge;
     private static float lastYaw;
     private static boolean initialized;
+    private static boolean wasSwinging;
+    private static int battleVoiceCooldown;
 
     @Override
     public void onInitializeClient() {
@@ -42,6 +46,7 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
                 enabled = !enabled;
                 combat = energy = focus = strain = turnVelocity = walk = run = bridge = 0.0F;
                 initialized = false;
+                wasSwinging = false;
                 if (client.player != null) {
                     client.player.sendMessage(Text.literal(
                             enabled ? "AUTO PLAY FULL BODY: AÇIK" : "AUTO PLAY FULL BODY: KAPALI"), true);
@@ -56,8 +61,11 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
         if (!enabled || p == null || client.world == null) {
             combat = energy = focus = strain = turnVelocity = walk = run = bridge = 0.0F;
             initialized = false;
+            wasSwinging = false;
             return;
         }
+
+        if (battleVoiceCooldown > 0) battleVoiceCooldown--;
 
         float yaw = p.getYaw();
         if (!initialized) {
@@ -100,6 +108,14 @@ public final class ProceduralAIRigClient implements ClientModInitializer {
         if (client.options.attackKey.isPressed()) wantedCombat = 1.0F;
         if (p.handSwinging) wantedCombat = 1.0F;
         if (AutoPvPAnimationClient.getFinisherTicks() > 0) wantedCombat = 1.0F;
+
+        boolean swinging = p.handSwinging;
+        if (swinging && !wasSwinging && wantedCombat > 0.55F && battleVoiceCooldown <= 0
+                && ThreadLocalRandom.current().nextInt(100) < 58) {
+            EnglishBattleVoiceClient.playRandom(client);
+            battleVoiceCooldown = 170 + ThreadLocalRandom.current().nextInt(120);
+        }
+        wasSwinging = swinging;
 
         float hp = p.getHealth() / Math.max(1.0F, p.getMaxHealth());
         float wantedStrain = MathHelper.clamp(1.0F - hp * 1.20F, 0.0F, 1.0F);
