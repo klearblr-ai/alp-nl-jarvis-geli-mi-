@@ -17,5 +17,14 @@
   "key.arrowrip.blood_bending": "Blood Bending",
   "key.arrowrip.blood_throw": "Blood Throw",
   "key.arrowrip.bowgun_inspect": "Bow-Gun Inspect",
-  "key.arrowrip.bowgun_reload": "Change Virtual Magazine"
+  "key.arrowrip.bowgun_reload": "Change Virtual Magazine",
+  "key.arrowrip.bowgun_firemode": "Bow-Gun AUTO / SEMI Fire Mode",
+  "key.arrowrip.mouth": "Toggle Anime Mouth",
+  "key.arrowrip.mouth_up": "Mouth Up",
+  "key.arrowrip.mouth_down": "Mouth Down",
+  "key.arrowrip.mouth_left": "Mouth Left",
+  "key.arrowrip.mouth_right": "Mouth Right",
+  "key.arrowrip.mouth_bigger": "Mouth Bigger",
+  "key.arrowrip.mouth_smaller": "Mouth Smaller",
+  "key.arrowrip.mouth_reset": "Reset Mouth Position"
 }
