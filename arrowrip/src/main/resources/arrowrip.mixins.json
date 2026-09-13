@@ -31,7 +31,10 @@
     "EmotionPoseMixin",
     "SwordBackGeometryMixin",
     "SwordFinisherAnimationMixin",
-    "SwordHeldItemHideMixin"
+    "SwordHeldItemHideMixin",
+    "SwordStabPolishMixin",
+    "SwordDisarmPoseMixin",
+    "SwordFinisherPolishMixin"
   ],
   "injectors": {
     "defaultRequire": 1
