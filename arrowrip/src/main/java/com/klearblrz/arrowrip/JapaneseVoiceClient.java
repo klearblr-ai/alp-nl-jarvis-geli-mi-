@@ -68,7 +68,10 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
                 "key.arrowrip.voice_chat_mode", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_Y, ArrowRipClient.CATEGORY));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (voiceKey.wasPressed()) playRandomVoice(client);
+            while (voiceKey.wasPressed()) {
+                if (ThreadLocalRandom.current().nextInt(100) < 30) EnglishBattleVoiceClient.playRandom(client);
+                else playRandomVoice(client);
+            }
             while (chatModeKey.wasPressed()) {
                 chatMode = !chatMode;
                 if (client.player != null) {
@@ -99,7 +102,6 @@ public final class JapaneseVoiceClient implements ClientModInitializer {
         PlayerEntity speaker = targetSpeaks ? target : client.player;
         subtitleTarget = speaker.getName().getString();
 
-        // Every single line, including all 1031 generated ones, starts a moving cinematic emote.
         AnimeAnimationClient.triggerSpeechEmote(idx, speaker.getId(), subtitleTicks);
 
         if (chatMode && client.inGameHud != null) {
