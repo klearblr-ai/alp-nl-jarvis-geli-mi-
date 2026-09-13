@@ -6,7 +6,8 @@
     "FingerGeometryMixin",
     "FingerAnimationMixin",
     "SimpleWalkRunMixin",
-    "SimpleCombatMixin"
+    "SimpleCombatMixin",
+    "HeldItemPalmFitMixin"
   ],
   "injectors": {
     "defaultRequire": 1
