@@ -1,5 +1,6 @@
 package com.klearblrz.arrowrip.mixin;
 
+import com.klearblrz.arrowrip.SwordDisarmClient;
 import com.klearblrz.arrowrip.SwordFinisherClient;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.command.OrderedRenderCommandQueue;
@@ -18,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(PlayerHeldItemFeatureRenderer.class)
 public abstract class SwordHeldItemHideMixin {
     @Inject(method = "renderItem", at = @At("HEAD"), cancellable = true)
-    private void arrowrip$hideSheathedSword(
+    private void arrowrip$hideSwordWhenNeeded(
             PlayerEntityRenderState state,
             ItemRenderState itemRenderState,
             ItemStack stack,
@@ -28,7 +29,17 @@ public abstract class SwordHeldItemHideMixin {
             int light,
             CallbackInfo ci) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || state.id != client.player.getId()) return;
-        if (!SwordFinisherClient.isSwordDrawn() && stack.isIn(ItemTags.SWORDS)) ci.cancel();
+        if (client.player == null) return;
+
+        // Local draw/sheath illusion.
+        if (state.id == client.player.getId()
+                && !SwordFinisherClient.isSwordDrawn()
+                && stack.isIn(ItemTags.SWORDS)) {
+            ci.cancel();
+            return;
+        }
+
+        // Remote visual disarm. Server inventory is untouched; only rendering is suppressed.
+        if (SwordDisarmClient.shouldHideSword(state.id, stack)) ci.cancel();
     }
 }
