@@ -2,15 +2,10 @@
   "schemaVersion": 1,
   "id": "arrowrip",
   "version": "${version}",
-  "name": "Arrow Rip Fingers & Movement",
-  "description": "Client-side rectangular fingers plus skin-safe walking and running animations. No custom attack animation.",
+  "name": "ArrowRip Blocky Fingers",
+  "description": "Client-side skin-safe rectangular fingers with only walk/run, one punch and one sword slash animation. Other ArrowRip systems are disabled.",
   "authors": ["klearblrZ + OpenAI"],
   "environment": "client",
-  "entrypoints": {
-    "client": [
-      "com.klearblrz.arrowrip.FingerWalkClient"
-    ]
-  },
   "mixins": ["arrowrip.mixins.json"],
   "depends": {
     "fabricloader": ">=0.18.4",
