@@ -11,10 +11,7 @@ import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
 
-/**
- * Pure client-side sword clash/disarm illusion.
- * It never edits server inventory: held-sword rendering is hidden briefly and a local ItemEntity is thrown away.
- */
+/** Client-only sword clash/disarm illusion. Server inventory is never changed. */
 public final class SwordDisarmClient implements ClientModInitializer {
     private static int targetId = -1;
     private static int attackerId = -1;
@@ -31,7 +28,6 @@ public final class SwordDisarmClient implements ClientModInitializer {
 
     private static void tick(MinecraftClient client) {
         if (cooldown > 0) cooldown--;
-
         if (client.player == null || client.world == null) {
             clear();
             lastAttackDown = false;
@@ -49,10 +45,7 @@ public final class SwordDisarmClient implements ClientModInitializer {
             trigger(client, client.player, target);
         }
 
-        if (disarmTicks > 0) {
-            disarmTicks--;
-            if (disarmTicks == 0) clear();
-        }
+        if (disarmTicks > 0 && --disarmTicks == 0) clear();
     }
 
     public static boolean trigger(MinecraftClient client, PlayerEntity attacker, PlayerEntity target) {
@@ -84,7 +77,7 @@ public final class SwordDisarmClient implements ClientModInitializer {
         droppedSword.setYaw(target.getYaw() + 90.0F);
         client.world.addEntity(droppedSword);
 
-        target.playSound(SoundEvents.ITEM_SHIELD_BLOCK, 0.75F, 1.48F);
+        target.playSound(SoundEvents.ITEM_SHIELD_BLOCK.value(), 0.75F, 1.48F);
         attacker.playSound(SoundEvents.ENTITY_PLAYER_ATTACK_STRONG, 0.55F, 0.92F);
         attacker.sendMessage(Text.literal("KILIÇ ÇARPIŞMASI • RAKİBİN KILICI DÜŞTÜ"), true);
         return true;
