@@ -26,7 +26,8 @@
     "BowFastPullMixin",
     "BowGunThirdPersonMixin",
     "HandGripCorrectionMixin",
-    "HeldItemGripAnchorMixin"
+    "HeldItemGripAnchorMixin",
+    "SocialChatMixin"
   ],
   "injectors": {
     "defaultRequire": 1
