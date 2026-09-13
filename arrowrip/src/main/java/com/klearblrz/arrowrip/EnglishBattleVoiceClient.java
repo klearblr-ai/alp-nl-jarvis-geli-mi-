@@ -28,13 +28,28 @@ public final class EnglishBattleVoiceClient implements ClientModInitializer {
             "Let's end this!",
             "Try me!",
             "Fuck it, come on!",
-            "You want a fight? Come on!"
+            "You want a fight? Come on!",
+            "Kill you!",
+            "Murder!",
+            "Kill! I'm coming!",
+            "Fuck you!",
+            "Fuck up!",
+            "You're fucking done!",
+            "I'm gonna end you!",
+            "Come here!",
+            "Don't run!",
+            "Stand and fight!",
+            "You're mine!",
+            "This ends now!"
     };
 
     private static final String[] SOUNDS = {
             "voice_en_00", "voice_en_01", "voice_en_02", "voice_en_03",
             "voice_en_04", "voice_en_05", "voice_en_06", "voice_en_07",
-            "voice_en_08", "voice_en_09", "voice_en_10", "voice_en_11"
+            "voice_en_08", "voice_en_09", "voice_en_10", "voice_en_11",
+            "voice_en_12", "voice_en_13", "voice_en_14", "voice_en_15",
+            "voice_en_16", "voice_en_17", "voice_en_18", "voice_en_19",
+            "voice_en_20", "voice_en_21", "voice_en_22", "voice_en_23"
     };
 
     private static String subtitle = "";
@@ -59,8 +74,6 @@ public final class EnglishBattleVoiceClient implements ClientModInitializer {
         PlayerEntity speaker = client.player;
         subtitle = LINES[idx];
         subtitleTicks = 70;
-
-        // Each English shout gets a moving full-body speech scene too.
         AnimeAnimationClient.triggerSpeechEmote(3000 + idx, speaker.getId(), subtitleTicks);
 
         try {
