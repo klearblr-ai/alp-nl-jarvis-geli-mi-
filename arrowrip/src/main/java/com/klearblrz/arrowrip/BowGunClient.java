@@ -8,10 +8,15 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.text.Text;
+import net.minecraft.util.Arm;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -39,6 +44,7 @@ public final class BowGunClient implements ClientModInitializer {
     private static boolean reloadStopSent;
     private static boolean autoMode = true;
     private static boolean semiLatched;
+    private static ItemEntity fakeMagazineEntity;
 
     @Override
     public void onInitializeClient() {
@@ -105,12 +111,14 @@ public final class BowGunClient implements ClientModInitializer {
                 client.interactionManager.stopUsingItem(client.player);
                 reloadStopSent = true;
             }
+            updateFakeMagazine(client, client.player);
             reloadTicks--;
             if (reloadTicks == 0) {
                 magazine = MAG_SIZE;
                 releasedThisUse = false;
                 reloadStopSent = false;
                 restartDelay = 1;
+                clearFakeMagazine();
                 client.player.sendMessage(Text.literal("SANAL ŞARJÖR 19/19"), true);
             }
             return;
@@ -180,7 +188,7 @@ public final class BowGunClient implements ClientModInitializer {
             float p = reloadProgress(0.0F);
             ctx.fill(bx, by, bx + barW, by + 3, 0x66000000);
             ctx.fill(bx, by, bx + Math.max(1, (int)(barW * p)), by + 3, 0xFFFFFFFF);
-            ctx.drawTextWithShadow(mc.textRenderer, "RELOAD", bx, by - 10, 0xFFFFFFFF);
+            ctx.drawTextWithShadow(mc.textRenderer, "RELOAD • VIRTUAL MAG", bx - 35, by - 10, 0xFFFFFFFF);
         }
     }
 
@@ -191,9 +199,60 @@ public final class BowGunClient implements ClientModInitializer {
         releasedThisUse = true;
         reloadStopSent = false;
         semiLatched = true;
+        spawnFakeMagazine(client);
         if (client.player != null) {
             client.player.sendMessage(Text.literal("SANAL ŞARJÖR DEĞİŞİYOR…"), true);
         }
+    }
+
+    private static void spawnFakeMagazine(MinecraftClient client) {
+        clearFakeMagazine();
+        if (client.player == null || client.world == null) return;
+        PlayerEntity p = client.player;
+        fakeMagazineEntity = new ItemEntity(
+                client.world,
+                p.getX(),
+                p.getY() + p.getHeight() * 0.62,
+                p.getZ(),
+                new ItemStack(Items.NETHER_BRICK));
+        fakeMagazineEntity.setNoGravity(true);
+        fakeMagazineEntity.setVelocity(Vec3d.ZERO);
+        fakeMagazineEntity.setPickupDelayInfinite();
+        client.world.addEntity(fakeMagazineEntity);
+        updateFakeMagazine(client, p);
+    }
+
+    private static void updateFakeMagazine(MinecraftClient client, PlayerEntity p) {
+        if (client.world == null) return;
+        if (fakeMagazineEntity == null || !fakeMagazineEntity.isAlive()) spawnFakeMagazine(client);
+        if (fakeMagazineEntity == null) return;
+
+        Vec3d look = p.getRotationVec(1.0F);
+        Vec3d flat = new Vec3d(look.x, 0.0, look.z);
+        if (flat.lengthSquared() < 0.0001) flat = new Vec3d(0.0, 0.0, 1.0);
+        flat = flat.normalize();
+        Vec3d right = new Vec3d(-flat.z, 0.0, flat.x).normalize();
+
+        float progress = reloadProgress(0.0F);
+        float drop = MathHelper.sin(MathHelper.clamp(progress / 0.66F, 0.0F, 1.0F) * (float)Math.PI);
+        float seat = MathHelper.clamp((progress - 0.55F) / 0.45F, 0.0F, 1.0F);
+        double supportSide = p.getMainArm() == Arm.RIGHT ? -0.31 : 0.31;
+
+        Vec3d pos = p.getEntityPos()
+                .add(0.0, p.getHeight() * 0.61 - 0.23 * drop + 0.08 * seat, 0.0)
+                .add(right.multiply(supportSide))
+                .add(flat.multiply(0.14 + 0.10 * seat));
+
+        fakeMagazineEntity.setPosition(pos.x, pos.y, pos.z);
+        fakeMagazineEntity.setVelocity(Vec3d.ZERO);
+        fakeMagazineEntity.setNoGravity(true);
+        fakeMagazineEntity.setYaw(p.getYaw() + (p.getMainArm() == Arm.RIGHT ? -16.0F : 16.0F));
+        fakeMagazineEntity.setPitch(78.0F - 42.0F * seat);
+    }
+
+    private static void clearFakeMagazine() {
+        if (fakeMagazineEntity != null) fakeMagazineEntity.discard();
+        fakeMagazineEntity = null;
     }
 
     private static void resetTransient() {
@@ -204,6 +263,7 @@ public final class BowGunClient implements ClientModInitializer {
         releasedThisUse = false;
         reloadStopSent = false;
         semiLatched = false;
+        clearFakeMagazine();
     }
 
     private static void resetAll() {
