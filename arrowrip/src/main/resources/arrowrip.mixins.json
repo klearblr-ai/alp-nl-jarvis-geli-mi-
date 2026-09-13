@@ -5,7 +5,8 @@
   "client": [
     "FingerGeometryMixin",
     "FingerAnimationMixin",
-    "SimpleWalkRunMixin"
+    "SimpleWalkRunMixin",
+    "SimpleCombatMixin"
   ],
   "injectors": {
     "defaultRequire": 1
