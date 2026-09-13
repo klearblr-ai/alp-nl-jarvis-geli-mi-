@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "fingerplus",
+  "version": "${version}",
+  "name": "FingerPlus",
+  "description": "Client-side rectangular fingers for classic and slim Minecraft skins, with a shape editor and lightweight walk/run finger motion.",
+  "authors": ["klearblrZ + OpenAI"],
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.klearblrz.fingerplus.FingerPlusClient"]
+  },
+  "mixins": ["fingerplus.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "=1.21.11",
+    "java": ">=21",
+    "fabric-api": ">=0.141.3+1.21.11"
+  }
+}
