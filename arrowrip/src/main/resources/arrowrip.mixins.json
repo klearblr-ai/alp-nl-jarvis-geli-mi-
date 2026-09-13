@@ -28,7 +28,10 @@
     "HandGripCorrectionMixin",
     "HeldItemGripAnchorMixin",
     "SocialChatMixin",
-    "EmotionPoseMixin"
+    "EmotionPoseMixin",
+    "SwordBackGeometryMixin",
+    "SwordFinisherAnimationMixin",
+    "SwordHeldItemHideMixin"
   ],
   "injectors": {
     "defaultRequire": 1
