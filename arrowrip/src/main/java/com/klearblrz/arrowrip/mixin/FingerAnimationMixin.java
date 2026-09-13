@@ -1,11 +1,10 @@
 package com.klearblrz.arrowrip.mixin;
 
-import com.klearblrz.arrowrip.AnimeAnimationClient;
+import com.klearblrz.arrowrip.FingerWalkClient;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.model.ModelPart;
 import net.minecraft.client.render.entity.model.PlayerEntityModel;
 import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
-import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.util.Arm;
 import net.minecraft.util.math.MathHelper;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,6 +12,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/** Finger animation attached directly to vanilla arms so normal and Quick Skin textures keep working. */
 @Mixin(PlayerEntityModel.class)
 public abstract class FingerAnimationMixin {
     private static final String[] DIGITS = {"pinky", "ring", "middle", "index"};
@@ -20,105 +20,81 @@ public abstract class FingerAnimationMixin {
     @Inject(method = "setAngles(Lnet/minecraft/client/render/entity/state/PlayerEntityRenderState;)V", at = @At("TAIL"))
     private void arrowrip$animateFingers(PlayerEntityRenderState state, CallbackInfo ci) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null) return;
+        PlayerEntityModel model = (PlayerEntityModel)(Object)this;
 
-        PlayerEntityModel model = (PlayerEntityModel) (Object) this;
-        boolean local = state.id == client.player.getId();
-        boolean speech = AnimeAnimationClient.getSpeechEmoteTicks() > 0
-                && state.id == AnimeAnimationClient.getSpeechSpeakerId();
-        boolean neckTarget = AnimeAnimationClient.getNeckSnapTicks() > 0
-                && state.id == AnimeAnimationClient.getNeckSnapTargetId();
-        boolean relevant = local || speech || neckTarget;
+        // Fingers are children of the vanilla arms, so they inherit whatever skin texture is currently bound.
+        setHandVisible(model.rightArm, true, !state.spectator);
+        setHandVisible(model.leftArm, false, !state.spectator);
+        if (state.spectator) return;
 
-        try {
-            setHandVisible(model.rightArm, true, relevant);
-            setHandVisible(model.leftArm, false, relevant);
-        } catch (Throwable ignored) {
-            return;
-        }
-        if (!relevant) return;
-
-        int rightMode = AnimeAnimationClient.areFingersOpen() ? 0 : 1;
+        boolean local = client.player != null && state.id == client.player.getId();
+        int rightMode = local && !FingerWalkClient.fingersOpen() ? 1 : 0;
         int leftMode = rightMode;
 
-        if (state.getMainHandItemStack().isIn(ItemTags.SWORDS)) {
+        // Holding an item naturally closes the main hand around it. This is not an attack animation.
+        if (!state.getMainHandItemStack().isEmpty()) {
             if (state.mainArm == Arm.RIGHT) rightMode = 1;
             else leftMode = 1;
         }
-        if (state.handSwingProgress > 0.01F) {
-            if (state.mainArm == Arm.RIGHT) rightMode = 1;
-            else leftMode = 1;
-        }
 
-        if (local && AnimeAnimationClient.getEmoteType() == 10) {
-            rightMode = 1;
-            leftMode = 1;
-        }
-
-        if (speech) {
-            int style = AnimeAnimationClient.getSpeechEmoteType();
-            switch (style) {
-                case 4 -> { rightMode = 1; leftMode = 1; }      // power fists
-                case 5 -> rightMode = 0;                        // stop palm
-                case 8, 9, 10 -> rightMode = 2;                 // pointing / threat / beckon
-                case 11 -> rightMode = 1;                       // determined fist
-                case 12 -> { rightMode = 0; leftMode = 0; }     // dramatic spread
-                default -> { }
-            }
-        }
-
-        if (AnimeAnimationClient.getNeckSnapTicks() > 0 && local) {
-            rightMode = 1;
-            leftMode = 1;
-        }
-        if (neckTarget) {
-            rightMode = 0;
-            leftMode = 0;
-        }
-
-        applyHand(model.rightArm, true, rightMode, state.age);
-        applyHand(model.leftArm, false, leftMode, state.age);
+        applyHand(model.rightArm, true, rightMode, state.age, state.limbSwingAmplitude);
+        applyHand(model.leftArm, false, leftMode, state.age, state.limbSwingAmplitude);
     }
 
     private static void setHandVisible(ModelPart arm, boolean right, boolean visible) {
         String side = right ? "r" : "l";
-        for (String digit : DIGITS) arm.getChild("arrowrip_" + side + "_" + digit).visible = visible;
-        arm.getChild("arrowrip_" + side + "_thumb").visible = visible;
+        try {
+            for (String digit : DIGITS) {
+                arm.getChild("arrowrip_" + side + "_" + digit).visible = visible;
+            }
+            arm.getChild("arrowrip_" + side + "_thumb").visible = visible;
+        } catch (Throwable ignored) { }
     }
 
-    // 0 = open, 1 = fist/grip, 2 = point with index finger.
-    private static void applyHand(ModelPart arm, boolean right, int mode, float age) {
+    // 0 = open/relaxed, 1 = fist/grip.
+    private static void applyHand(ModelPart arm, boolean right, int mode, float age, float moveAmp) {
         String side = right ? "r" : "l";
         float sign = right ? 1.0F : -1.0F;
-        float idle = MathHelper.sin(age * 0.09F) * 0.055F;
+        float motion = MathHelper.clamp(moveAmp, 0.0F, 1.0F);
+        float idle = MathHelper.sin(age * 0.095F) * (0.045F + motion * 0.018F);
 
         for (int i = 0; i < DIGITS.length; i++) {
-            ModelPart finger = arm.getChild("arrowrip_" + side + "_" + DIGITS[i]);
-            if (mode == 0) {
-                finger.pitch = idle * (0.65F + i * 0.10F);
-                finger.yaw = sign * ((i - 1.5F) * 0.055F);
-                finger.roll = sign * ((i - 1.5F) * 0.018F);
-            } else if (mode == 2 && i == 3) {
-                finger.pitch = -0.05F + idle * 0.30F;
-                finger.yaw = 0.0F;
-                finger.roll = 0.0F;
-            } else {
-                float curl = 1.16F + i * 0.085F;
-                finger.pitch = -curl;
-                finger.yaw = sign * (0.055F - i * 0.010F);
-                finger.roll = sign * 0.035F;
-            }
+            try {
+                ModelPart finger = arm.getChild("arrowrip_" + side + "_" + DIGITS[i]);
+                ModelPart tip = finger.getChild("arrowrip_" + side + "_" + DIGITS[i] + "_tip");
+                if (mode == 0) {
+                    finger.pitch = -0.07F + idle * (0.65F + i * 0.08F);
+                    finger.yaw = sign * ((i - 1.5F) * 0.050F);
+                    finger.roll = sign * ((i - 1.5F) * 0.016F);
+                    tip.pitch = -0.10F + idle * 0.45F;
+                    tip.yaw = 0.0F;
+                    tip.roll = 0.0F;
+                } else {
+                    float curl = 0.92F + i * 0.055F;
+                    finger.pitch = -curl;
+                    finger.yaw = sign * (0.050F - i * 0.008F);
+                    finger.roll = sign * 0.028F;
+                    tip.pitch = -1.02F - i * 0.035F;
+                    tip.yaw = 0.0F;
+                    tip.roll = 0.0F;
+                }
+            } catch (Throwable ignored) { }
         }
 
-        ModelPart thumb = arm.getChild("arrowrip_" + side + "_thumb");
-        if (mode == 0) {
-            thumb.pitch = -0.18F + idle * 0.35F;
-            thumb.yaw = -sign * 0.55F;
-            thumb.roll = sign * 0.34F;
-        } else {
-            thumb.pitch = -0.84F;
-            thumb.yaw = -sign * 0.78F;
-            thumb.roll = sign * 0.62F;
-        }
+        try {
+            ModelPart thumb = arm.getChild("arrowrip_" + side + "_thumb");
+            ModelPart thumbTip = thumb.getChild("arrowrip_" + side + "_thumb_tip");
+            if (mode == 0) {
+                thumb.pitch = -0.22F + idle * 0.30F;
+                thumb.yaw = -sign * 0.56F;
+                thumb.roll = sign * 0.32F;
+                thumbTip.pitch = -0.12F;
+            } else {
+                thumb.pitch = -0.76F;
+                thumb.yaw = -sign * 0.74F;
+                thumb.roll = sign * 0.57F;
+                thumbTip.pitch = -0.72F;
+            }
+        } catch (Throwable ignored) { }
     }
 }
