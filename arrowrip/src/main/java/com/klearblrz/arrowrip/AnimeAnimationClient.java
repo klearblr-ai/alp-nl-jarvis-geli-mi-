@@ -19,22 +19,20 @@ public final class AnimeAnimationClient implements ClientModInitializer {
     private static boolean sitting = false;
     private static boolean fingersOpen = true;
 
-    // Every spoken line gets a moving cinematic emote. This can target the local
-    // player or the looked-at player because JapaneseVoiceClient chooses the speaker.
     private static int speechEmoteType = 0;
     private static int speechEmoteTicks = 0;
     private static int speechEmoteDuration = 1;
     private static int speechSpeakerId = -1;
 
-    // Client-side neck-snap scene. It never deals authoritative server damage.
     private static int neckSnapTargetId = -1;
     private static int neckSnapTicks = 0;
     private static int neckSnapDuration = 44;
 
     @Override
     public void onInitializeClient() {
+        // P is reserved for sword draw/sheath in SwordFinisherClient.
         emoteKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.arrowrip.anime_emote", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_P, ArrowRipClient.CATEGORY));
+                "key.arrowrip.anime_emote", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_H, ArrowRipClient.CATEGORY));
         sitKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.arrowrip.anime_sit", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_O, ArrowRipClient.CATEGORY));
         fingerKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
