@@ -100,6 +100,28 @@ public abstract class BowGunFirstPersonMixin {
                 matrices,
                 queue,
                 light);
+
+        // Fake magazine: rendered only during reload. It never exists in inventory or on the server.
+        if (reload > 0.02F) {
+            float appear = smooth(MathHelper.clamp(reload / 0.16F, 0.0F, 1.0F));
+            float seat = smooth(MathHelper.clamp((reload - 0.52F) / 0.42F, 0.0F, 1.0F));
+            float lift = MathHelper.sin(MathHelper.clamp(reload / 0.76F, 0.0F, 1.0F) * (float)Math.PI);
+            matrices.push();
+            matrices.translate(-side * (0.58F - 0.16F * seat), 0.22F - 0.24F * lift + 0.12F * seat, -0.26F + 0.18F * seat);
+            matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(76.0F - 42.0F * seat));
+            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-side * (24.0F - 14.0F * seat)));
+            matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(side * (12.0F + 18.0F * lift)));
+            matrices.scale(0.62F * appear, 1.12F * appear, 0.72F * appear);
+            this.renderItem(
+                    player,
+                    new ItemStack(Items.NETHER_BRICK),
+                    right ? ItemDisplayContext.FIRST_PERSON_LEFT_HAND : ItemDisplayContext.FIRST_PERSON_RIGHT_HAND,
+                    matrices,
+                    queue,
+                    light);
+            matrices.pop();
+        }
+
         matrices.pop();
         ci.cancel();
     }
