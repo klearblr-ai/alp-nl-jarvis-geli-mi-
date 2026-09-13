@@ -18,7 +18,7 @@ public final class SwordFinisherClient implements ClientModInitializer {
 
     private static boolean swordDrawn = true;
     private static int drawTicks = 0;
-    private static int drawDuration = 18;
+    private static final int drawDuration = 18;
     private static int drawDirection = 1; // 1 draw, -1 sheath
 
     private static int finisherStyle = 0;
@@ -26,6 +26,34 @@ public final class SwordFinisherClient implements ClientModInitializer {
     private static int finisherDuration = 1;
     private static int finisherTargetId = -1;
     private static int finisherAttackerId = -1;
+
+    private static final String[] FINISHER_NAMES = {
+            "",
+            "Diagonal Break",
+            "Reverse Cut",
+            "Rising Fang",
+            "Overhead Crush",
+            "Straight Impale",
+            "Two-Hand Thrust",
+            "Spin Cutter",
+            "Kick + Slash",
+            "Knee + Pommel",
+            "Low Stab",
+            "Cross Slash",
+            "Backhand Cut",
+            "Disarm + Pommel",
+            "Elbow + Slash",
+            "Feint + Thrust",
+            "Jumping Cut",
+            "Sweep + Stab",
+            "Guard Break",
+            "Iaido Draw Cut",
+            "Reverse-Grip Stab",
+            "Two-Step Combo",
+            "Roundhouse + Thrust",
+            "Execution Overhead",
+            "Final Anime Combo"
+    };
 
     @Override
     public void onInitializeClient() {
@@ -80,28 +108,32 @@ public final class SwordFinisherClient implements ClientModInitializer {
         }
 
         finisherStyle++;
-        if (finisherStyle > 19) finisherStyle = 1;
+        if (finisherStyle > 24) finisherStyle = 1;
         finisherDuration = durationFor(finisherStyle);
         finisherTicks = finisherDuration;
         finisherTargetId = target.getId();
         finisherAttackerId = client.player.getId();
         swordDrawn = true;
         drawTicks = 0;
+
+        if ((finisherStyle == 13 || finisherStyle == 18) && target.getMainHandStack().isIn(ItemTags.SWORDS)) {
+            SwordDisarmClient.trigger(client, client.player, target);
+        }
+
         client.player.sendMessage(Text.literal(
-                finisherStyle == 19
-                        ? "FINISHER 19: 2 DAKİKALIK SİNEMATİK KOREOGRAFİ"
-                        : "FINISHER " + finisherStyle), true);
+                "FINISHER " + finisherStyle + "/24 • " + getFinisherName()), true);
     }
 
     private static int durationFor(int style) {
-        if (style == 19) return 2400; // 2 minutes at 20 tps
         return switch (style) {
-            case 1, 2, 3, 4 -> 72;
-            case 5, 6, 7, 8 -> 86;
-            case 9, 10, 11, 12 -> 98;
-            case 13, 14, 15 -> 112;
-            case 16, 17, 18 -> 132;
-            default -> 80;
+            case 1, 2, 3, 4 -> 62;
+            case 5, 6, 7, 8 -> 70;
+            case 9, 10, 11, 12 -> 76;
+            case 13, 14, 15, 16 -> 82;
+            case 17, 18, 19, 20 -> 88;
+            case 21, 22, 23 -> 96;
+            case 24 -> 116;
+            default -> 72;
         };
     }
 
@@ -116,4 +148,8 @@ public final class SwordFinisherClient implements ClientModInitializer {
     public static int getFinisherTargetId() { return finisherTargetId; }
     public static int getFinisherAttackerId() { return finisherAttackerId; }
     public static boolean isFinisherActive() { return finisherTicks > 0; }
+    public static String getFinisherName() {
+        return finisherStyle >= 1 && finisherStyle < FINISHER_NAMES.length
+                ? FINISHER_NAMES[finisherStyle] : "Cinematic";
+    }
 }
