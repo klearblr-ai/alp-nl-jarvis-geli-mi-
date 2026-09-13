@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "com.klearblrz.fingerplus.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "FingerModelMixin",
+    "FingerMotionMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
